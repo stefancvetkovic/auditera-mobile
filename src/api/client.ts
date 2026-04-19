@@ -1,5 +1,6 @@
 /// <reference types="expo/types" />
 import axios from 'axios';
+import { Platform } from 'react-native';
 import { useAuthStore } from '../stores/authStore';
 
 interface AuthUser {
@@ -14,7 +15,9 @@ interface AuthResponse {
   user: AuthUser;
 }
 
-const API_URL = __DEV__ ? 'http://localhost:5002' : 'https://api.auditera.com';
+const API_URL = __DEV__
+  ? Platform.OS === 'android' ? 'http://10.0.2.2:5002' : 'http://localhost:5002'
+  : 'https://api.auditera.com';
 
 export const api = axios.create({ baseURL: API_URL, timeout: 30000 });
 
