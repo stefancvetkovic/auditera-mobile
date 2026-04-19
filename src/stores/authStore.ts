@@ -17,6 +17,17 @@ interface AuthState {
   loadToken: () => Promise<void>;
 }
 
+function isAuthUser(value: unknown): value is AuthUser {
+  if (typeof value !== 'object' || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.id === 'string' &&
+    typeof v.email === 'string' &&
+    typeof v.firstName === 'string' &&
+    typeof v.lastName === 'string'
+  );
+}
+
 export const useAuthStore = create<AuthState>((set) => ({
   token: null,
   user: null,
@@ -32,11 +43,17 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ token: null, user: null, isAuthenticated: false });
   },
   loadToken: async () => {
-    const token = await SecureStore.getItemAsync('auth_token');
-    const userJson = await SecureStore.getItemAsync('auth_user');
-    if (token && userJson) {
-      const user: AuthUser = JSON.parse(userJson);
-      set({ token, user, isAuthenticated: true });
+    try {
+      const token = await SecureStore.getItemAsync('auth_token');
+      const userJson = await SecureStore.getItemAsync('auth_user');
+      if (token && userJson) {
+        const parsed: unknown = JSON.parse(userJson);
+        if (isAuthUser(parsed)) {
+          set({ token, user: parsed, isAuthenticated: true });
+        }
+      }
+    } catch {
+      // Corrupted store — remain logged out
     }
   },
 }));

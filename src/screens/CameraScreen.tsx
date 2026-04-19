@@ -78,6 +78,8 @@ export function CameraScreen({ navigation }: Props) {
             style={[styles.shutter, capturing && styles.shutterDisabled]}
             onPress={handleCapture}
             disabled={capturing}
+            accessibilityLabel="Slikaj račun"
+            accessibilityRole="button"
           >
             {capturing ? (
               <ActivityIndicator color="#fff" />

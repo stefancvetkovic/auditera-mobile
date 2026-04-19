@@ -6,6 +6,7 @@ import {
   StyleSheet,
   RefreshControl,
   ActivityIndicator,
+  TouchableOpacity,
 } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { receiptsApi } from '../api/client';
@@ -20,7 +21,7 @@ interface ReceiptItem {
   submittedAt: string;
 }
 
-interface ReceiptsResponse {
+interface ReceiptsApiBody {
   data: {
     items: ReceiptItem[];
     totalCount: number;
@@ -30,7 +31,7 @@ interface ReceiptsResponse {
 }
 
 export function HistoryScreen() {
-  const { data, isLoading, isError, refetch, isFetching } = useQuery<ReceiptsResponse>({
+  const { data, isLoading, isError, refetch, isFetching } = useQuery<ReceiptsApiBody>({
     queryKey: ['myReceipts'],
     queryFn: () => receiptsApi.getMyReceipts(1).then((r) => r.data),
   });
@@ -59,6 +60,9 @@ export function HistoryScreen() {
     return (
       <View style={styles.center}>
         <Text style={styles.errorText}>Greška pri učitavanju računa.</Text>
+        <TouchableOpacity style={styles.retryBtn} onPress={() => void refetch()}>
+          <Text style={styles.retryBtnText}>Pokušaj ponovo</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -108,4 +112,12 @@ const styles = StyleSheet.create({
   meta: { fontSize: 11, color: '#999' },
   emptyText: { fontSize: 15, color: '#999' },
   errorText: { fontSize: 15, color: '#e53935' },
+  retryBtn: {
+    marginTop: 12,
+    backgroundColor: '#1a1a2e',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
 });

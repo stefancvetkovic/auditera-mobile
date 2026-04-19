@@ -14,6 +14,24 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+api.interceptors.response.use(
+  (response) => response,
+  (error: unknown) => {
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      useAuthStore.getState().logout();
+    }
+    return Promise.reject(error);
+  }
+);
+
+export function getApiErrorMessage(error: unknown, fallback: string): string {
+  if (axios.isAxiosError(error)) {
+    const msg = error.response?.data?.message;
+    if (typeof msg === 'string' && msg.length > 0) return msg;
+  }
+  return fallback;
+}
+
 export const receiptsApi = {
   submit: (formData: FormData) =>
     api.post('/api/v1/receipts', formData, {

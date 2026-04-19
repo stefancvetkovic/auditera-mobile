@@ -9,7 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { authApi } from '../api/client';
+import { authApi, getApiErrorMessage } from '../api/client';
 import { useAuthStore } from '../stores/authStore';
 
 export function LoginScreen() {
@@ -30,8 +30,7 @@ export function LoginScreen() {
       const { data } = await authApi.login(email.trim(), password);
       await setAuth(data.accessToken, data.user);
     } catch (e: unknown) {
-      const err = e as { response?: { data?: { message?: string } } };
-      setError(err.response?.data?.message ?? 'Greška pri prijavi. Proverite kredencijale.');
+      setError(getApiErrorMessage(e, 'Greška pri prijavi. Proverite kredencijale.'));
     } finally {
       setLoading(false);
     }
@@ -67,7 +66,13 @@ export function LoginScreen() {
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        <TouchableOpacity style={styles.primaryBtn} onPress={handleLogin} disabled={loading}>
+        <TouchableOpacity
+          style={styles.primaryBtn}
+          onPress={handleLogin}
+          disabled={loading}
+          accessibilityLabel="Prijavi se"
+          accessibilityRole="button"
+        >
           {loading ? (
             <ActivityIndicator color="#fff" />
           ) : (

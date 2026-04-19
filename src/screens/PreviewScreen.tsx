@@ -12,13 +12,15 @@ import {
 } from 'react-native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
-import { receiptsApi } from '../api/client';
+import { receiptsApi, getApiErrorMessage } from '../api/client';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Preview'>;
   route: RouteProp<RootStackParamList, 'Preview'>;
 };
+
+const SUBMISSION_SOURCE_MOBILE = '0';
 
 export function PreviewScreen({ navigation, route }: Props) {
   const { imageUri, qrUrl } = route.params;
@@ -40,13 +42,12 @@ export function PreviewScreen({ navigation, route }: Props) {
       if (qrUrl) {
         formData.append('fiscalQrUrl', qrUrl);
       }
-      formData.append('submittedVia', '0'); // Mobile = 0
+      formData.append('submittedVia', SUBMISSION_SOURCE_MOBILE);
 
       await receiptsApi.submit(formData);
       navigation.navigate('Main');
     } catch (e: unknown) {
-      const err = e as { response?: { data?: { message?: string } } };
-      Alert.alert('Greška', err.response?.data?.message ?? 'Slanje nije uspelo. Pokušajte ponovo.');
+      Alert.alert('Greška', getApiErrorMessage(e, 'Slanje nije uspelo. Pokušajte ponovo.'));
     } finally {
       setLoading(false);
     }
@@ -84,6 +85,8 @@ export function PreviewScreen({ navigation, route }: Props) {
           style={styles.secondaryBtn}
           onPress={() => navigation.goBack()}
           disabled={loading}
+          accessibilityLabel="Ponovi slikanje"
+          accessibilityRole="button"
         >
           <Text style={styles.secondaryBtnText}>Ponovi</Text>
         </TouchableOpacity>
@@ -92,6 +95,8 @@ export function PreviewScreen({ navigation, route }: Props) {
           style={[styles.primaryBtn, loading && styles.disabled]}
           onPress={handleSend}
           disabled={loading}
+          accessibilityLabel="Pošalji račun"
+          accessibilityRole="button"
         >
           {loading ? (
             <ActivityIndicator color="#fff" />

@@ -52,7 +52,7 @@ export function AppNavigator() {
   const { isAuthenticated, loadToken } = useAuthStore();
 
   useEffect(() => {
-    loadToken();
+    void loadToken();
   }, [loadToken]);
 
   return (
