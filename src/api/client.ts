@@ -2,6 +2,18 @@
 import axios from 'axios';
 import { useAuthStore } from '../stores/authStore';
 
+interface AuthUser {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+}
+
+interface AuthResponse {
+  accessToken: string;
+  user: AuthUser;
+}
+
 const API_URL = __DEV__ ? 'http://localhost:5002' : 'https://api.auditera.com';
 
 export const api = axios.create({ baseURL: API_URL, timeout: 30000 });
@@ -43,5 +55,7 @@ export const receiptsApi = {
 
 export const authApi = {
   login: (email: string, password: string) =>
-    api.post('/api/v1/auth/login', { email, password }),
+    api.post<AuthResponse>('/api/v1/auth/login', { email, password }),
+  entraLogin: (idToken: string) =>
+    api.post<AuthResponse>('/api/v1/auth/entra-login', { idToken }),
 };

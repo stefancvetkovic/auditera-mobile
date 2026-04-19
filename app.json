@@ -12,11 +12,24 @@
       "resizeMode": "contain",
       "backgroundColor": "#1a1a2e"
     },
-    "ios": { "supportsTablet": false },
-    "android": { "adaptiveIcon": { "foregroundImage": "./assets/adaptive-icon.png", "backgroundColor": "#1a1a2e" } },
+    "ios": {
+      "supportsTablet": false
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1a1a2e"
+      }
+    },
     "plugins": [
       "expo-secure-store",
-      ["expo-camera", { "cameraPermission": "Dozvolite pristup kameri za slikanje računa." }]
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Dozvolite pristup kameri za slikanje računa."
+        }
+      ],
+      "expo-web-browser"
     ]
   }
 }
