@@ -118,6 +118,7 @@ stages:
             CODE_SIGN_IDENTITY="$(APPLE_CODESIGN_KEY)" \
             PROVISIONING_PROFILE="$(installProfile.provisioningProfileUuid)" \
             DEVELOPMENT_TEAM="$(APPLE_TEAM_ID)" \
+            CURRENT_PROJECT_VERSION="$(Build.BuildId)" \
             -allowProvisioningUpdates \
             | xcpretty
         displayName: 'xcodebuild archive'
