@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,9 @@ import {
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 import { receiptsApi, getApiErrorMessage } from '../api/client';
+import { savePendingReceipt } from '../stores/receiptsCache';
+import { useThemeStore } from '../stores/themeStore';
+import type { ColorScheme } from '../theme/colors';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 
 type Props = {
@@ -26,6 +29,8 @@ export function PreviewScreen({ navigation, route }: Props) {
   const { imageUri, qrUrl } = route.params;
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
+  const colors = useThemeStore((s) => s.colors);
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const handleSend = async () => {
     setLoading(true);
@@ -47,7 +52,19 @@ export function PreviewScreen({ navigation, route }: Props) {
       await receiptsApi.submit(formData);
       navigation.navigate('Main');
     } catch (e: unknown) {
-      Alert.alert('Greška', getApiErrorMessage(e, 'Slanje nije uspelo. Pokušajte ponovo.'));
+      // Save locally when API is unreachable
+      await savePendingReceipt({
+        localId: Date.now().toString(),
+        imageUri,
+        description: description.trim(),
+        qrUrl,
+        savedAt: new Date().toISOString(),
+      });
+      Alert.alert(
+        'Sačuvano lokalno',
+        'Račun je sačuvan na uređaju i biće poslat kada se uspostavi konekcija.',
+        [{ text: 'OK', onPress: () => navigation.navigate('Main') }],
+      );
     } finally {
       setLoading(false);
     }
@@ -73,6 +90,7 @@ export function PreviewScreen({ navigation, route }: Props) {
       <TextInput
         style={styles.input}
         placeholder="Npr. poslovni ručak, gorivo..."
+        placeholderTextColor={colors.textMuted}
         value={description}
         onChangeText={setDescription}
         multiline
@@ -99,7 +117,7 @@ export function PreviewScreen({ navigation, route }: Props) {
           accessibilityRole="button"
         >
           {loading ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={colors.brandText} />
           ) : (
             <Text style={styles.primaryBtnText}>Pošalji</Text>
           )}
@@ -109,50 +127,53 @@ export function PreviewScreen({ navigation, route }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
-  content: { padding: 20, paddingBottom: 40 },
-  heading: { fontSize: 22, fontWeight: '700', color: '#1a1a2e', marginBottom: 16 },
-  preview: { width: '100%', height: 300, borderRadius: 12, backgroundColor: '#e0e0e0', marginBottom: 12 },
-  badge: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#4caf50',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginBottom: 16,
-  },
-  badgeGray: { backgroundColor: '#9e9e9e' },
-  badgeText: { color: '#fff', fontSize: 12, fontWeight: '600' },
-  label: { fontSize: 13, color: '#555', marginBottom: 6, fontWeight: '500' },
-  input: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 15,
-    textAlignVertical: 'top',
-    marginBottom: 24,
-  },
-  actions: { flexDirection: 'row', gap: 12 },
-  primaryBtn: {
-    flex: 1,
-    backgroundColor: '#1a1a2e',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  primaryBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  secondaryBtn: {
-    flex: 1,
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  secondaryBtnText: { color: '#1a1a2e', fontSize: 16, fontWeight: '600' },
-  disabled: { opacity: 0.6 },
-});
+function createStyles(colors: ColorScheme) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    content: { padding: 20, paddingBottom: 40 },
+    heading: { fontSize: 22, fontWeight: '700', color: colors.text, marginBottom: 16 },
+    preview: { width: '100%', height: 300, borderRadius: 12, backgroundColor: colors.surface, marginBottom: 12 },
+    badge: {
+      alignSelf: 'flex-start',
+      backgroundColor: colors.badgeFiscalBg,
+      paddingHorizontal: 12,
+      paddingVertical: 4,
+      borderRadius: 12,
+      marginBottom: 16,
+    },
+    badgeGray: { backgroundColor: colors.badgeImageBg },
+    badgeText: { color: colors.badgeFiscalText, fontSize: 12, fontWeight: '600' },
+    label: { fontSize: 13, color: colors.textSecondary, marginBottom: 6, fontWeight: '500' },
+    input: {
+      backgroundColor: colors.inputBackground,
+      borderWidth: 1,
+      borderColor: colors.inputBorder,
+      borderRadius: 8,
+      padding: 12,
+      fontSize: 15,
+      color: colors.inputText,
+      textAlignVertical: 'top',
+      marginBottom: 24,
+    },
+    actions: { flexDirection: 'row', gap: 12 },
+    primaryBtn: {
+      flex: 1,
+      backgroundColor: colors.brand,
+      padding: 16,
+      borderRadius: 8,
+      alignItems: 'center',
+    },
+    primaryBtnText: { color: colors.brandText, fontSize: 16, fontWeight: '600' },
+    secondaryBtn: {
+      flex: 1,
+      backgroundColor: colors.surface,
+      padding: 16,
+      borderRadius: 8,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    secondaryBtnText: { color: colors.text, fontSize: 16, fontWeight: '600' },
+    disabled: { opacity: 0.6 },
+  });
+}

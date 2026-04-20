@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,8 @@ import {
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import type { CameraType, BarcodeScanningResult } from 'expo-camera';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useThemeStore } from '../stores/themeStore';
+import type { ColorScheme } from '../theme/colors';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 
 type Props = {
@@ -22,9 +24,11 @@ export function CameraScreen({ navigation }: Props) {
   const [qrUrl, setQrUrl] = useState<string | undefined>(undefined);
   const [capturing, setCapturing] = useState(false);
   const cameraRef = useRef<CameraView>(null);
+  const colors = useThemeStore((s) => s.colors);
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   if (!permission) {
-    return <View style={styles.center}><ActivityIndicator size="large" /></View>;
+    return <View style={styles.center}><ActivityIndicator size="large" color={colors.brand} /></View>;
   }
 
   if (!permission.granted) {
@@ -93,42 +97,44 @@ export function CameraScreen({ navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-  permText: { fontSize: 16, textAlign: 'center', marginBottom: 16 },
-  camera: { flex: 1 },
-  overlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    paddingBottom: 48,
-  },
-  qrBadge: {
-    backgroundColor: 'rgba(76, 175, 80, 0.9)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginBottom: 24,
-  },
-  qrBadgeText: { color: '#fff', fontWeight: '600', fontSize: 13 },
-  shutter: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    borderWidth: 4,
-    borderColor: '#fff',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  shutterDisabled: { opacity: 0.5 },
-  shutterInner: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: '#fff',
-  },
-  btn: { backgroundColor: '#1a1a2e', padding: 14, borderRadius: 8 },
-  btnText: { color: '#fff', fontSize: 15 },
-});
+function createStyles(colors: ColorScheme) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: '#000' },
+    center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: colors.background },
+    permText: { fontSize: 16, textAlign: 'center', marginBottom: 16, color: colors.text },
+    camera: { flex: 1 },
+    overlay: {
+      flex: 1,
+      justifyContent: 'flex-end',
+      alignItems: 'center',
+      paddingBottom: 48,
+    },
+    qrBadge: {
+      backgroundColor: 'rgba(76, 175, 80, 0.9)',
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 20,
+      marginBottom: 24,
+    },
+    qrBadgeText: { color: '#fff', fontWeight: '600', fontSize: 13 },
+    shutter: {
+      width: 72,
+      height: 72,
+      borderRadius: 36,
+      backgroundColor: 'rgba(255,255,255,0.3)',
+      borderWidth: 4,
+      borderColor: '#fff',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    shutterDisabled: { opacity: 0.5 },
+    shutterInner: {
+      width: 52,
+      height: 52,
+      borderRadius: 26,
+      backgroundColor: '#fff',
+    },
+    btn: { backgroundColor: colors.brand, padding: 14, borderRadius: 8 },
+    btnText: { color: colors.brandText, fontSize: 15 },
+  });
+}

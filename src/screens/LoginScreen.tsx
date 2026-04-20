@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -9,53 +9,54 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import * as AuthSession from 'expo-auth-session';
-import * as WebBrowser from 'expo-web-browser';
 import { authApi, getApiErrorMessage } from '../api/client';
 import { useAuthStore } from '../stores/authStore';
-
-// Required for redirect handling on web
-WebBrowser.maybeCompleteAuthSession();
-
-// TODO: Move to environment config
-const ENTRA_CLIENT_ID =
-  process.env['EXPO_PUBLIC_ENTRA_CLIENT_ID'] ?? 'YOUR_ENTRA_CLIENT_ID';
-
-const ENTRA_DISCOVERY_URL = 'https://login.microsoftonline.com/common/v2.0';
+import { useThemeStore } from '../stores/themeStore';
+import type { ColorScheme } from '../theme/colors';
 
 export function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const biometricAttempted = useRef(false);
+
   const setAuth = useAuthStore((s) => s.setAuth);
+  const biometricEnabled = useAuthStore((s) => s.biometricEnabled);
+  const biometricInfo = useAuthStore((s) => s.biometricInfo);
+  const authenticateWithBiometric = useAuthStore((s) => s.authenticateWithBiometric);
+  const token = useAuthStore((s) => s.token);
 
-  const discovery = AuthSession.useAutoDiscovery(ENTRA_DISCOVERY_URL);
+  const colors = useThemeStore((s) => s.colors);
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const [request, response, promptAsync] = AuthSession.useAuthRequest(
-    {
-      clientId: ENTRA_CLIENT_ID,
-      scopes: ['openid', 'profile', 'email'],
-      redirectUri: AuthSession.makeRedirectUri({ scheme: 'auditera' }),
-      responseType: AuthSession.ResponseType.IdToken,
-    },
-    discovery,
-  );
+  const hasSavedSession = biometricEnabled && token !== null;
+
+  const handleBiometricLogin = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const result = await authenticateWithBiometric();
+      if (!result.success) {
+        setLoading(false);
+        if (result.reason === 'lockout') {
+          setError('Biometrija privremeno zaključana. Koristite email i lozinku.');
+        } else if (result.reason === 'no_token') {
+          setError('Sesija je istekla. Prijavite se ponovo.');
+        }
+      }
+    } catch {
+      setError('Biometrijska prijava nije uspela.');
+      setLoading(false);
+    }
+  }, [authenticateWithBiometric]);
 
   useEffect(() => {
-    if (response?.type === 'success') {
-      const idToken = response.params['id_token'];
-      if (typeof idToken === 'string' && idToken.length > 0) {
-        void handleEntraCallback(idToken);
-      } else {
-        setError('Microsoft prijava nije uspela: token nije primljen.');
-      }
-    } else if (response?.type === 'error') {
-      setError(
-        response.error?.message ?? 'Microsoft prijava nije uspela.',
-      );
+    if (hasSavedSession && !biometricAttempted.current) {
+      biometricAttempted.current = true;
+      void handleBiometricLogin();
     }
-  }, [response]);
+  }, [hasSavedSession, handleBiometricLogin]);
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -65,28 +66,10 @@ export function LoginScreen() {
     setLoading(true);
     setError('');
     try {
-      const { data } = await authApi.login(email.trim(), password);
-      await setAuth(data.accessToken, data.user);
+      const { data: envelope } = await authApi.login(email.trim(), password);
+      await setAuth(envelope.data.accessToken, envelope.data.user);
     } catch (e: unknown) {
       setError(getApiErrorMessage(e, 'Greška pri prijavi. Proverite kredencijale.'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleEntraLogin = () => {
-    setError('');
-    void promptAsync();
-  };
-
-  const handleEntraCallback = async (idToken: string) => {
-    setLoading(true);
-    setError('');
-    try {
-      const { data } = await authApi.entraLogin(idToken);
-      await setAuth(data.accessToken, data.user);
-    } catch (e: unknown) {
-      setError(getApiErrorMessage(e, 'Microsoft prijava nije uspela.'));
     } finally {
       setLoading(false);
     }
@@ -101,9 +84,39 @@ export function LoginScreen() {
         <Text style={styles.title}>Auditera</Text>
         <Text style={styles.subtitle}>Dostava računa</Text>
 
+        {hasSavedSession && (
+          <>
+            <TouchableOpacity
+              style={styles.biometricBtn}
+              onPress={handleBiometricLogin}
+              disabled={loading}
+              accessibilityLabel={biometricInfo.label}
+              accessibilityRole="button"
+            >
+              {loading ? (
+                <ActivityIndicator color={colors.brand} />
+              ) : (
+                <>
+                  <Text style={styles.biometricIcon}>
+                    {biometricInfo.biometryType === 'face-id' ? '👤' : '🔒'}
+                  </Text>
+                  <Text style={styles.biometricBtnText}>{biometricInfo.label}</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>ili unesite kredencijale</Text>
+              <View style={styles.dividerLine} />
+            </View>
+          </>
+        )}
+
         <TextInput
           style={styles.input}
           placeholder="Email"
+          placeholderTextColor={colors.textMuted}
           value={email}
           onChangeText={setEmail}
           keyboardType="email-address"
@@ -114,6 +127,7 @@ export function LoginScreen() {
         <TextInput
           style={styles.input}
           placeholder="Lozinka"
+          placeholderTextColor={colors.textMuted}
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -130,29 +144,9 @@ export function LoginScreen() {
           accessibilityRole="button"
         >
           {loading ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={colors.brandText} />
           ) : (
             <Text style={styles.primaryBtnText}>Prijavi se</Text>
-          )}
-        </TouchableOpacity>
-
-        <View style={styles.dividerRow}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>ili</Text>
-          <View style={styles.dividerLine} />
-        </View>
-
-        <TouchableOpacity
-          style={[styles.microsoftBtn, (!request || loading) && styles.disabledBtn]}
-          onPress={handleEntraLogin}
-          disabled={!request || loading}
-          accessibilityLabel="Prijavi se sa Microsoft nalogom"
-          accessibilityRole="button"
-        >
-          {loading ? (
-            <ActivityIndicator color="#1a1a2e" />
-          ) : (
-            <Text style={styles.microsoftBtnText}>Prijavi se sa Microsoft nalogom</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -160,44 +154,51 @@ export function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  container: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: '#f8f9fa' },
-  title: { fontSize: 32, fontWeight: '700', color: '#1a1a2e', textAlign: 'center', marginBottom: 4 },
-  subtitle: { fontSize: 14, color: '#666', textAlign: 'center', marginBottom: 32 },
-  input: {
-    backgroundColor: '#fff',
-    padding: 14,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    fontSize: 15,
-    marginBottom: 10,
-  },
-  primaryBtn: {
-    backgroundColor: '#1a1a2e',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  primaryBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  error: { color: '#e53935', fontSize: 13, marginBottom: 8, textAlign: 'center' },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 20,
-  },
-  dividerLine: { flex: 1, height: 1, backgroundColor: '#ddd' },
-  dividerText: { marginHorizontal: 12, color: '#999', fontSize: 13 },
-  microsoftBtn: {
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  microsoftBtnText: { color: '#1a1a2e', fontSize: 16, fontWeight: '600' },
-  disabledBtn: { opacity: 0.5 },
-});
+function createStyles(colors: ColorScheme) {
+  return StyleSheet.create({
+    flex: { flex: 1 },
+    container: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: colors.background },
+    title: { fontSize: 32, fontWeight: '700', color: colors.text, textAlign: 'center', marginBottom: 4 },
+    subtitle: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 32 },
+    biometricBtn: {
+      backgroundColor: colors.surface,
+      padding: 20,
+      borderRadius: 12,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.brand,
+      marginBottom: 8,
+      flexDirection: 'row',
+      justifyContent: 'center',
+      gap: 10,
+    },
+    biometricIcon: { fontSize: 24 },
+    biometricBtnText: { color: colors.brand, fontSize: 17, fontWeight: '600' },
+    input: {
+      backgroundColor: colors.inputBackground,
+      padding: 14,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.inputBorder,
+      fontSize: 15,
+      color: colors.inputText,
+      marginBottom: 10,
+    },
+    primaryBtn: {
+      backgroundColor: colors.brand,
+      padding: 16,
+      borderRadius: 8,
+      alignItems: 'center',
+      marginTop: 8,
+    },
+    primaryBtnText: { color: colors.brandText, fontSize: 16, fontWeight: '600' },
+    error: { color: colors.error, fontSize: 13, marginBottom: 8, textAlign: 'center' },
+    dividerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginVertical: 20,
+    },
+    dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
+    dividerText: { marginHorizontal: 12, color: colors.textMuted, fontSize: 13 },
+  });
+}

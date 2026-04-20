@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,15 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Ionicons } from '@expo/vector-icons';
 import { receiptsApi } from '../api/client';
+import { cacheReceipts, getCachedReceipts, getPendingReceipts, removePendingReceipt } from '../stores/receiptsCache';
+import type { PendingReceipt } from '../stores/receiptsCache';
+import { useThemeStore } from '../stores/themeStore';
+import type { ColorScheme } from '../theme/colors';
+import type { RootStackParamList } from '../navigation/AppNavigator';
 
 interface ReceiptItem {
   id: string;
@@ -22,44 +30,123 @@ interface ReceiptItem {
 }
 
 interface ReceiptsApiBody {
+  isSuccess: boolean;
   data: {
     items: ReceiptItem[];
     totalCount: number;
     pageNumber: number;
-    pageSize: number;
+    totalPages: number;
   };
 }
 
+type Nav = NativeStackNavigationProp<RootStackParamList>;
+
 export function HistoryScreen() {
+  const navigation = useNavigation<Nav>();
+  const colors = useThemeStore((s) => s.colors);
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const [cachedItems, setCachedItems] = useState<ReceiptItem[] | null>(null);
+  const [pending, setPending] = useState<PendingReceipt[]>([]);
+
   const { data, isLoading, isError, refetch, isFetching } = useQuery<ReceiptsApiBody>({
     queryKey: ['myReceipts'],
     queryFn: () => receiptsApi.getMyReceipts(1).then((r) => r.data),
   });
 
-  const items = data?.data?.items ?? [];
+  const serverItems = data?.data?.items ?? [];
+
+  // Cache receipts on successful fetch + try syncing pending
+  useEffect(() => {
+    if (serverItems.length > 0) {
+      void cacheReceipts(serverItems);
+    }
+    // Sync pending receipts when server is reachable
+    if (data && pending.length > 0) {
+      void syncPendingReceipts();
+    }
+  }, [serverItems]);
+
+  const syncPendingReceipts = async () => {
+    const current = await getPendingReceipts();
+    for (const p of current) {
+      try {
+        const formData = new FormData();
+        formData.append('image', {
+          uri: p.imageUri,
+          type: 'image/jpeg',
+          name: 'receipt.jpg',
+        } as unknown as Blob);
+        if (p.description) formData.append('description', p.description);
+        if (p.qrUrl) formData.append('fiscalQrUrl', p.qrUrl);
+        formData.append('submittedVia', '0');
+        await receiptsApi.submit(formData);
+        await removePendingReceipt(p.localId);
+      } catch {
+        break; // still offline, stop trying
+      }
+    }
+    const remaining = await getPendingReceipts();
+    setPending(remaining);
+    if (remaining.length < current.length) {
+      void refetch();
+    }
+  };
+
+  // Load cached receipts + pending on mount
+  useEffect(() => {
+    void getCachedReceipts().then((cached) => {
+      if (cached) setCachedItems(cached);
+    });
+    void getPendingReceipts().then(setPending);
+  }, []);
+
+  const isOffline = isError && !isLoading;
+  const items = isOffline ? (cachedItems ?? []) : serverItems;
+
+  const handlePress = useCallback((item: ReceiptItem) => {
+    navigation.navigate('ReceiptDetail', {
+      receiptId: item.id,
+      fileName: item.fileName,
+      description: item.description,
+      period: item.period,
+      isFiscal: item.isFiscal,
+    });
+  }, [navigation]);
 
   const renderItem = useCallback(({ item }: { item: ReceiptItem }) => (
-    <View style={styles.card}>
+    <TouchableOpacity
+      style={styles.card}
+      activeOpacity={0.7}
+      onPress={() => handlePress(item)}
+    >
       <View style={styles.cardHeader}>
         <Text style={styles.seq}>#{item.sequenceNumber.toString().padStart(3, '0')}</Text>
-        <View style={[styles.badge, item.isFiscal ? styles.badgeFiscal : styles.badgeImage]}>
-          <Text style={styles.badgeText}>{item.isFiscal ? 'Fiskalni' : 'Slika'}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <View style={[styles.badge, item.isFiscal ? styles.badgeFiscal : styles.badgeImage]}>
+            <Text style={[styles.badgeText, { color: item.isFiscal ? colors.badgeFiscalText : colors.badgeImageText }]}>
+              {item.isFiscal ? 'Fiskalni' : 'Slika'}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
         </View>
       </View>
-      <Text style={styles.fileName}>{item.fileName}</Text>
+      <Text style={styles.fileName} numberOfLines={1}>{item.fileName}</Text>
       {item.description ? <Text style={styles.desc}>{item.description}</Text> : null}
       <Text style={styles.meta}>{item.period} · {new Date(item.submittedAt).toLocaleDateString('sr-RS')}</Text>
-    </View>
-  ), []);
+    </TouchableOpacity>
+  ), [styles, colors, handlePress]);
 
   if (isLoading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#1a1a2e" /></View>;
+    return <View style={styles.center}><ActivityIndicator size="large" color={colors.brand} /></View>;
   }
 
-  if (isError) {
+  // Only show full error screen if offline AND no cached data
+  if (isOffline && items.length === 0) {
     return (
       <View style={styles.center}>
-        <Text style={styles.errorText}>Greška pri učitavanju računa.</Text>
+        <Ionicons name="cloud-offline-outline" size={48} color={colors.textMuted} />
+        <Text style={styles.offlineTitle}>Nema keširanog sadržaja</Text>
+        <Text style={styles.offlineSubtitle}>Konekcija ka serveru trenutno nije moguća.</Text>
         <TouchableOpacity style={styles.retryBtn} onPress={() => void refetch()}>
           <Text style={styles.retryBtnText}>Pokušaj ponovo</Text>
         </TouchableOpacity>
@@ -67,57 +154,124 @@ export function HistoryScreen() {
     );
   }
 
-  return (
-    <FlatList
-      style={styles.list}
-      data={items}
-      keyExtractor={(item) => item.id}
-      renderItem={renderItem}
-      refreshControl={
-        <RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} />
-      }
-      ListEmptyComponent={
-        <View style={styles.center}>
-          <Text style={styles.emptyText}>Nema poslatih računa.</Text>
+  const pendingHeader = pending.length > 0 ? (
+    <View style={styles.pendingSection}>
+      <View style={styles.pendingHeader}>
+        <Ionicons name="time-outline" size={16} color={colors.textMuted} />
+        <Text style={styles.pendingTitle}>Čeka slanje ({pending.length})</Text>
+      </View>
+      {pending.map((p) => (
+        <View key={p.localId} style={[styles.card, styles.pendingCard]}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.seq}>Na čekanju</Text>
+            <View style={[styles.badge, p.qrUrl ? styles.badgeFiscal : styles.badgeImage]}>
+              <Text style={[styles.badgeText, { color: p.qrUrl ? colors.badgeFiscalText : colors.badgeImageText }]}>
+                {p.qrUrl ? 'Fiskalni' : 'Slika'}
+              </Text>
+            </View>
+          </View>
+          {p.description ? <Text style={styles.desc}>{p.description}</Text> : null}
+          <Text style={styles.meta}>{new Date(p.savedAt).toLocaleDateString('sr-RS')}</Text>
         </View>
-      }
-      contentContainerStyle={items.length === 0 ? styles.flex : styles.listContent}
-    />
+      ))}
+    </View>
+  ) : null;
+
+  return (
+    <View style={styles.flex}>
+      <FlatList
+        style={styles.list}
+        data={items}
+        keyExtractor={(item) => item.id}
+        renderItem={renderItem}
+        ListHeaderComponent={pendingHeader}
+        refreshControl={
+          <RefreshControl
+            refreshing={isFetching && !isLoading}
+            onRefresh={() => {
+              void refetch();
+              void getPendingReceipts().then(setPending);
+            }}
+            tintColor={colors.brand}
+          />
+        }
+        ListEmptyComponent={
+          pending.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="receipt-outline" size={48} color={colors.textMuted} />
+              <Text style={styles.emptyText}>Nema poslatih računa.</Text>
+            </View>
+          ) : null
+        }
+        contentContainerStyle={items.length === 0 && pending.length === 0 ? styles.flexGrow : styles.listContent}
+      />
+      {isOffline && (
+        <View style={styles.offlineBanner}>
+          <Ionicons name="cloud-offline-outline" size={14} color={colors.brandText} />
+          <Text style={styles.offlineBannerText}>Konekcija ka serveru trenutno nije moguća</Text>
+        </View>
+      )}
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  list: { flex: 1, backgroundColor: '#f8f9fa' },
-  listContent: { padding: 16, gap: 12 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  seq: { fontSize: 15, fontWeight: '700', color: '#1a1a2e' },
-  badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
-  badgeFiscal: { backgroundColor: '#e8f5e9' },
-  badgeImage: { backgroundColor: '#e3f2fd' },
-  badgeText: { fontSize: 11, fontWeight: '600', color: '#333' },
-  fileName: { fontSize: 13, color: '#555', marginBottom: 4 },
-  desc: { fontSize: 13, color: '#333', marginBottom: 4 },
-  meta: { fontSize: 11, color: '#999' },
-  emptyText: { fontSize: 15, color: '#999' },
-  errorText: { fontSize: 15, color: '#e53935' },
-  retryBtn: {
-    marginTop: 12,
-    backgroundColor: '#1a1a2e',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  retryBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-});
+function createStyles(colors: ColorScheme) {
+  return StyleSheet.create({
+    flex: { flex: 1, backgroundColor: colors.background },
+    flexGrow: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+    list: { flex: 1, backgroundColor: colors.background },
+    listContent: { padding: 16, gap: 12 },
+    center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: colors.background },
+    card: {
+      backgroundColor: colors.surface,
+      borderRadius: 10,
+      padding: 16,
+      shadowColor: '#000',
+      shadowOpacity: 0.06,
+      shadowRadius: 4,
+      shadowOffset: { width: 0, height: 2 },
+      elevation: 2,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+    seq: { fontSize: 15, fontWeight: '700', color: colors.text },
+    badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
+    badgeFiscal: { backgroundColor: colors.badgeFiscalBg },
+    badgeImage: { backgroundColor: colors.badgeImageBg },
+    badgeText: { fontSize: 11, fontWeight: '600' },
+    fileName: { fontSize: 13, color: colors.textSecondary, marginBottom: 4 },
+    desc: { fontSize: 13, color: colors.text, marginBottom: 4 },
+    meta: { fontSize: 11, color: colors.textMuted },
+    emptyContainer: { alignItems: 'center', padding: 24 },
+    emptyText: { fontSize: 15, color: colors.textMuted, marginTop: 12 },
+    pendingSection: { marginBottom: 8 },
+    pendingHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+    pendingTitle: { fontSize: 13, fontWeight: '600', color: colors.textMuted },
+    pendingCard: { borderStyle: 'dashed' as const, opacity: 0.8, marginBottom: 8 },
+    offlineTitle: { fontSize: 16, fontWeight: '600', color: colors.text, marginTop: 12 },
+    offlineSubtitle: { fontSize: 13, color: colors.textMuted, marginTop: 4, textAlign: 'center' },
+    retryBtn: {
+      marginTop: 16,
+      backgroundColor: colors.brand,
+      paddingHorizontal: 20,
+      paddingVertical: 10,
+      borderRadius: 8,
+    },
+    retryBtnText: { color: colors.brandText, fontSize: 14, fontWeight: '600' },
+    offlineBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      backgroundColor: colors.error,
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+    },
+    offlineBannerText: {
+      color: colors.brandText,
+      fontSize: 12,
+      fontWeight: '500',
+    },
+  });
+}
