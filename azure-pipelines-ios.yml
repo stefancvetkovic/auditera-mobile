@@ -77,6 +77,7 @@ stages:
           certSecureFile: 'auditera_distribution.p12'
           certPwd: '$(APPLE_CERT_PASSWORD)'
           keychain: 'temp'
+          opensslPkcsArgs: '-legacy'
 
       - task: DownloadSecureFile@1
         name: provProfile
