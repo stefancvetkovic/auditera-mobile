@@ -30,7 +30,7 @@ variables:
   - name: NODE_VERSION
     value: '22'
   - name: API_BASE_URL
-    value: 'https://api.auditera.rs'
+    value: 'https://api.auditera.ostrichtech.rs'
 
 stages:
 
@@ -62,6 +62,8 @@ stages:
           npx expo prebuild --clean --platform ios --non-interactive
         displayName: 'expo prebuild (iOS)'
         workingDirectory: '$(Build.SourcesDirectory)'
+        env:
+          EXPO_PUBLIC_API_URL: $(API_BASE_URL)
 
       # ── CocoaPods ─────────────────────────────────────────────────────────────
       - script: |
@@ -103,6 +105,7 @@ stages:
 
       # ── Archive ───────────────────────────────────────────────────────────────
       - script: |
+          export EXPO_PUBLIC_API_URL="$(API_BASE_URL)"
           WORKSPACE="$(Build.SourcesDirectory)/ios/Auditera.xcworkspace"
           ARCHIVE_PATH="$(Build.ArtifactStagingDirectory)/Auditera.xcarchive"
 

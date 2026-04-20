@@ -24,7 +24,7 @@ variables:
   - name: NODE_VERSION
     value: '22'
   - name: API_BASE_URL
-    value: 'https://api.auditera.rs'
+    value: 'https://api.auditera.ostrichtech.rs'
 
 stages:
 
@@ -55,6 +55,8 @@ stages:
               npx expo prebuild --clean --platform android --non-interactive
             displayName: 'expo prebuild (Android)'
             workingDirectory: '$(Build.SourcesDirectory)'
+            env:
+              EXPO_PUBLIC_API_URL: $(API_BASE_URL)
 
           # ── Keystore & signing ─────────────────────────────────────────────
           - task: DownloadSecureFile@1
@@ -78,6 +80,8 @@ stages:
               ./gradlew bundleRelease --no-daemon
             displayName: 'gradlew bundleRelease'
             workingDirectory: '$(Build.SourcesDirectory)'
+            env:
+              EXPO_PUBLIC_API_URL: $(API_BASE_URL)
 
           # ── Publish AAB ────────────────────────────────────────────────────
           - task: PublishBuildArtifacts@1

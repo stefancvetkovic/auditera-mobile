@@ -28,9 +28,10 @@ interface ApiEnvelope<T> {
   errors: string[];
 }
 
-const API_URL = __DEV__
-  ? Platform.OS === 'android' ? 'http://10.0.2.2:7070' : 'http://localhost:7070'
-  : 'https://api.auditera.com';
+const API_URL = process.env.EXPO_PUBLIC_API_URL
+  ?? (__DEV__
+    ? Platform.OS === 'android' ? 'http://10.0.2.2:7070' : 'http://localhost:7070'
+    : 'https://api.auditera.ostrichtech.rs');
 
 export const api = axios.create({ baseURL: API_URL, timeout: 30000 });
 
