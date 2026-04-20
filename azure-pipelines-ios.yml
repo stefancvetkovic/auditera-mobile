@@ -1,0 +1,198 @@
+trigger:
+  branches:
+    include:
+      - main
+      - release/*
+  paths:
+    exclude:
+      - azure-pipelines-android.yml
+
+pr:
+  branches:
+    include:
+      - main
+  paths:
+    exclude:
+      - azure-pipelines-android.yml
+
+parameters:
+  - name: deployOnly
+    displayName: 'Deploy only (skip Build, reuse latest IPA)'
+    type: boolean
+    default: false
+
+pool:
+  vmImage: 'macOS-latest'
+
+variables:
+  - group: ios-signing
+  - name: NODE_VERSION
+    value: '22'
+  - name: API_BASE_URL
+    value: 'https://api.auditera.rs'
+
+stages:
+
+# ─────────────────────────────────────────────────────────
+# STAGE 1: Build
+# ─────────────────────────────────────────────────────────
+- stage: Build
+  displayName: 'Build iOS IPA'
+  condition: eq('${{ parameters.deployOnly }}', false)
+  jobs:
+  - job: BuildIOS
+    displayName: 'Expo Prebuild + Xcode Build & Sign'
+    timeoutInMinutes: 60
+
+    steps:
+      # ── Node.js ──────────────────────────────────────────────────────────────
+      - task: NodeTool@0
+        displayName: 'Use Node.js $(NODE_VERSION)'
+        inputs:
+          versionSpec: '$(NODE_VERSION)'
+
+      # ── Dependencies ─────────────────────────────────────────────────────────
+      - script: npm ci
+        displayName: 'npm ci'
+        workingDirectory: '$(Build.SourcesDirectory)'
+
+      # ── Expo Prebuild ─────────────────────────────────────────────────────────
+      - script: |
+          npx expo prebuild --clean --platform ios --non-interactive
+        displayName: 'expo prebuild (iOS)'
+        workingDirectory: '$(Build.SourcesDirectory)'
+
+      # ── CocoaPods ─────────────────────────────────────────────────────────────
+      - script: |
+          cd ios
+          pod install --repo-update
+        displayName: 'pod install'
+        workingDirectory: '$(Build.SourcesDirectory)'
+
+      # ── Code Signing ──────────────────────────────────────────────────────────
+      - task: InstallAppleCertificate@2
+        displayName: 'Install Apple Distribution certificate'
+        inputs:
+          certSecureFile: 'auditera_distribution.p12'
+          certPwd: '$(APPLE_CERT_PASSWORD)'
+          keychain: 'temp'
+
+      - task: DownloadSecureFile@1
+        name: provProfile
+        displayName: 'Download Provisioning Profile'
+        inputs:
+          secureFile: 'auditera_appstore.mobileprovision'
+
+      - script: |
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          UUID=$(/usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin <<< $(/usr/bin/security cms -D -i "$(provProfile.secureFilePath)"))
+          echo "##vso[task.setvariable variable=provisioningProfileUuid;isOutput=true]$UUID"
+          cp "$(provProfile.secureFilePath)" ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
+          echo "Installed profile UUID: $UUID"
+        displayName: 'Install Provisioning Profile'
+        name: installProfile
+
+      # ── Configure manual signing ──────────────────────────────────────────────
+      - script: |
+          PBXPROJ="$(Build.SourcesDirectory)/ios/Auditera.xcodeproj/project.pbxproj"
+          sed -i '' 's/CODE_SIGN_STYLE = Automatic/CODE_SIGN_STYLE = Manual/g' "$PBXPROJ"
+          sed -i '' 's/ProvisioningStyle = Automatic/ProvisioningStyle = Manual/g' "$PBXPROJ"
+          echo "Manual signing configured"
+        displayName: 'Configure manual signing'
+
+      # ── Archive ───────────────────────────────────────────────────────────────
+      - script: |
+          WORKSPACE="$(Build.SourcesDirectory)/ios/Auditera.xcworkspace"
+          ARCHIVE_PATH="$(Build.ArtifactStagingDirectory)/Auditera.xcarchive"
+
+          xcodebuild archive \
+            -workspace "$WORKSPACE" \
+            -scheme "Auditera" \
+            -configuration Release \
+            -archivePath "$ARCHIVE_PATH" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="$(APPLE_CODESIGN_KEY)" \
+            PROVISIONING_PROFILE="$(installProfile.provisioningProfileUuid)" \
+            DEVELOPMENT_TEAM="$(APPLE_TEAM_ID)" \
+            -allowProvisioningUpdates \
+            | xcpretty
+        displayName: 'xcodebuild archive'
+
+      # ── Export IPA ────────────────────────────────────────────────────────────
+      - script: |
+          ARCHIVE_PATH="$(Build.ArtifactStagingDirectory)/Auditera.xcarchive"
+          EXPORT_PATH="$(Build.ArtifactStagingDirectory)/ipa"
+          EXPORT_OPTS="$(Build.SourcesDirectory)/ios-deploy/ExportOptions.plist"
+
+          xcodebuild -exportArchive \
+            -archivePath "$ARCHIVE_PATH" \
+            -exportOptionsPlist "$EXPORT_OPTS" \
+            -exportPath "$EXPORT_PATH" \
+            | xcpretty
+        displayName: 'xcodebuild exportArchive'
+
+      # ── Publish artifact ──────────────────────────────────────────────────────
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish IPA artifact'
+        inputs:
+          pathToPublish: '$(Build.ArtifactStagingDirectory)/ipa'
+          artifactName: 'ios-ipa'
+          publishLocation: 'Container'
+
+# ─────────────────────────────────────────────────────────
+# STAGE 2: Deploy to TestFlight
+# ─────────────────────────────────────────────────────────
+- stage: Deploy
+  displayName: 'Deploy to TestFlight'
+  dependsOn: Build
+  condition: in(dependencies.Build.result, 'Succeeded', 'SucceededWithIssues', 'Skipped')
+  jobs:
+  - job: DeployJob
+    displayName: 'Push to TestFlight'
+    steps:
+      - task: DownloadBuildArtifacts@1
+        displayName: 'Download IPA artifact (current run)'
+        condition: eq('${{ parameters.deployOnly }}', false)
+        inputs:
+          buildType: 'current'
+          downloadType: 'single'
+          artifactName: 'ios-ipa'
+          downloadPath: '$(System.ArtifactsDirectory)'
+
+      - task: DownloadBuildArtifacts@1
+        displayName: 'Download IPA artifact (latest build on branch)'
+        condition: eq('${{ parameters.deployOnly }}', true)
+        inputs:
+          buildType: 'specific'
+          project: '$(System.TeamProjectId)'
+          pipeline: '$(System.DefinitionId)'
+          buildVersionToDownload: 'latestFromBranch'
+          branchName: 'refs/heads/$(Build.SourceBranchName)'
+          artifactName: 'ios-ipa'
+          downloadPath: '$(System.ArtifactsDirectory)'
+
+      - task: DownloadSecureFile@1
+        name: appStoreKey
+        displayName: 'Download App Store Connect API key'
+        inputs:
+          secureFile: 'AppStoreConnectKey.p8'
+
+      - script: |
+          gem install --no-document fastlane
+
+          KEY_CONTENT=$(cat "$(appStoreKey.secureFilePath)" | awk '{printf "%s\\n", $0}')
+
+          printf '{"key_id":"%s","issuer_id":"%s","key":"%s","in_house":false}' \
+            "$(APP_STORE_CONNECT_KEY_ID)" \
+            "$(APP_STORE_CONNECT_ISSUER_ID)" \
+            "$KEY_CONTENT" > /tmp/api_key.json
+
+          IPA=$(find "$(System.ArtifactsDirectory)/ios-ipa" -name "*.ipa" | head -1)
+          echo "Uploading: $IPA"
+
+          fastlane pilot upload \
+            --api_key_path /tmp/api_key.json \
+            -i "$IPA" \
+            -a com.ostrichtech.auditera \
+            --skip_waiting_for_build_processing true
+        displayName: 'Deploy to TestFlight via fastlane'

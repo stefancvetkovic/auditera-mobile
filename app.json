@@ -13,9 +13,11 @@
       "backgroundColor": "#1a1a2e"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "bundleIdentifier": "com.ostrichtech.auditera"
     },
     "android": {
+      "package": "com.ostrichtech.auditera",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1a1a2e"

@@ -1,0 +1,115 @@
+trigger:
+  branches:
+    include:
+      - main
+      - release/*
+  paths:
+    exclude:
+      - azure-pipelines-ios.yml
+
+pr:
+  branches:
+    include:
+      - main
+  paths:
+    exclude:
+      - azure-pipelines-ios.yml
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  - group: android-signing
+  - name: NODE_VERSION
+    value: '22'
+  - name: API_BASE_URL
+    value: 'https://api.auditera.rs'
+
+stages:
+
+# ─────────────────────────────────────────────────────────
+# STAGE 1: Build
+# ─────────────────────────────────────────────────────────
+  - stage: Build
+    displayName: 'Android Build'
+    jobs:
+      - job: BuildAndroid
+        displayName: 'Expo Prebuild + Gradle Build'
+        timeoutInMinutes: 60
+
+        steps:
+          # ── Node.js ────────────────────────────────────────────────────────
+          - task: NodeTool@0
+            displayName: 'Use Node.js $(NODE_VERSION)'
+            inputs:
+              versionSpec: '$(NODE_VERSION)'
+
+          # ── Dependencies ───────────────────────────────────────────────────
+          - script: npm ci
+            displayName: 'npm ci'
+            workingDirectory: '$(Build.SourcesDirectory)'
+
+          # ── Expo Prebuild ──────────────────────────────────────────────────
+          - script: |
+              npx expo prebuild --clean --platform android --non-interactive
+            displayName: 'expo prebuild (Android)'
+            workingDirectory: '$(Build.SourcesDirectory)'
+
+          # ── Keystore & signing ─────────────────────────────────────────────
+          - task: DownloadSecureFile@1
+            name: keystore
+            displayName: 'Download release keystore'
+            inputs:
+              secureFile: 'auditera-release.keystore'
+
+          - script: |
+              cp "$(keystore.secureFilePath)" "$(Build.SourcesDirectory)/android/auditera-release.keystore"
+
+              printf 'storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\nstoreFile=../auditera-release.keystore\n' \
+                "$(KEYSTORE_PASSWORD)" "$(KEY_PASSWORD)" "$(KEY_ALIAS)" \
+                > "$(Build.SourcesDirectory)/android/key.properties"
+            displayName: 'Configure keystore & key.properties'
+
+          # ── Build AAB ──────────────────────────────────────────────────────
+          - script: |
+              cd android
+              chmod +x ./gradlew
+              ./gradlew bundleRelease --no-daemon
+            displayName: 'gradlew bundleRelease'
+            workingDirectory: '$(Build.SourcesDirectory)'
+
+          # ── Publish AAB ────────────────────────────────────────────────────
+          - task: PublishBuildArtifacts@1
+            displayName: 'Publish AAB artifact'
+            inputs:
+              pathToPublish: '$(Build.SourcesDirectory)/android/app/build/outputs/bundle/release'
+              artifactName: 'android-aab'
+              publishLocation: 'Container'
+
+# ─────────────────────────────────────────────────────────
+# STAGE 2: Deploy to Google Play
+# ─────────────────────────────────────────────────────────
+  - stage: Deploy
+    displayName: 'Deploy to Google Play'
+    dependsOn: Build
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - job: DeployJob
+        displayName: 'Upload to Google Play Internal'
+        steps:
+          - task: DownloadBuildArtifacts@1
+            displayName: 'Download AAB artifact'
+            inputs:
+              buildType: 'current'
+              downloadType: 'single'
+              artifactName: 'android-aab'
+              downloadPath: '$(System.ArtifactsDirectory)'
+
+          - task: GooglePlayRelease@4
+            displayName: 'Upload to Google Play (Internal)'
+            inputs:
+              serviceConnection: 'google-play-auditera'
+              applicationId: 'com.ostrichtech.auditera'
+              action: 'SingleBundle'
+              bundleFile: '$(System.ArtifactsDirectory)/android-aab/app-release.aab'
+              track: 'internal'
