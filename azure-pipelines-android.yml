@@ -50,6 +50,19 @@ stages:
             displayName: 'npm ci'
             workingDirectory: '$(Build.SourcesDirectory)'
 
+          # ── Set build number ──────────────────────────────────────────────
+          - script: |
+              node -e "
+                const fs = require('fs');
+                const app = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+                app.expo.android = app.expo.android || {};
+                app.expo.android.versionCode = parseInt('$(Build.BuildId)');
+                fs.writeFileSync('app.json', JSON.stringify(app, null, 2));
+                console.log('Set android.versionCode =', '$(Build.BuildId)');
+              "
+            displayName: 'Set Android version code'
+            workingDirectory: '$(Build.SourcesDirectory)'
+
           # ── Expo Prebuild ──────────────────────────────────────────────────
           - script: |
               npx expo prebuild --clean --platform android --non-interactive

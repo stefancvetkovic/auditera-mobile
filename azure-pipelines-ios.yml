@@ -57,6 +57,19 @@ stages:
         displayName: 'npm ci'
         workingDirectory: '$(Build.SourcesDirectory)'
 
+      # ── Set build number ─────────────────────────────────────────────────────
+      - script: |
+          node -e "
+            const fs = require('fs');
+            const app = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+            app.expo.ios = app.expo.ios || {};
+            app.expo.ios.buildNumber = '$(Build.BuildId)';
+            fs.writeFileSync('app.json', JSON.stringify(app, null, 2));
+            console.log('Set ios.buildNumber =', '$(Build.BuildId)');
+          "
+        displayName: 'Set iOS build number'
+        workingDirectory: '$(Build.SourcesDirectory)'
+
       # ── Expo Prebuild ─────────────────────────────────────────────────────────
       - script: |
           npx expo prebuild --clean --platform ios --non-interactive
