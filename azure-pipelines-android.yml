@@ -2,7 +2,6 @@ trigger:
   branches:
     include:
       - main
-      - master
       - release/*
   paths:
     exclude:
@@ -110,7 +109,7 @@ stages:
   - stage: Deploy
     displayName: 'Deploy to Google Play'
     dependsOn: Build
-    condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), eq(variables['Build.SourceBranch'], 'refs/heads/master')))
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
     jobs:
       - job: DeployJob
         displayName: 'Upload to Google Play Internal'
