@@ -39,3 +39,8 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Android credentials
+auditera-release.keystore
+android/key.properties
+credentials.md
