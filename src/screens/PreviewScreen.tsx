@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
+import { isAxiosError } from 'axios';
 import { receiptsApi, getApiErrorMessage } from '../api/client';
 import { savePendingReceipt } from '../stores/receiptsCache';
 import { useThemeStore } from '../stores/themeStore';
@@ -29,43 +30,56 @@ export function PreviewScreen({ navigation, route }: Props) {
   const { imageUri, qrUrl } = route.params;
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
+  const submitting = React.useRef(false);
   const colors = useThemeStore((s) => s.colors);
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const handleSend = async () => {
+    if (submitting.current) return;
+    submitting.current = true;
     setLoading(true);
     try {
       const formData = new FormData();
-      formData.append('image', {
-        uri: imageUri,
-        type: 'image/jpeg',
-        name: 'receipt.jpg',
-      } as unknown as Blob);
+
+      if (qrUrl) {
+        // Fiscal receipt: send only the QR URL, no image upload
+        formData.append('fiscalQrUrl', qrUrl);
+      } else {
+        // Regular receipt: send image only
+        formData.append('image', {
+          uri: imageUri,
+          type: 'image/jpeg',
+          name: 'receipt.jpg',
+        } as unknown as Blob);
+      }
+
       if (description.trim()) {
         formData.append('description', description.trim());
-      }
-      if (qrUrl) {
-        formData.append('fiscalQrUrl', qrUrl);
       }
       formData.append('submittedVia', SUBMISSION_SOURCE_MOBILE);
 
       await receiptsApi.submit(formData);
       navigation.navigate('Main');
     } catch (e: unknown) {
-      // Save locally when API is unreachable
-      await savePendingReceipt({
-        localId: Date.now().toString(),
-        imageUri,
-        description: description.trim(),
-        qrUrl,
-        savedAt: new Date().toISOString(),
-      });
-      Alert.alert(
-        'Sačuvano lokalno',
-        'Račun je sačuvan na uređaju i biće poslat kada se uspostavi konekcija.',
-        [{ text: 'OK', onPress: () => navigation.navigate('Main') }],
-      );
+      const isNetworkError = isAxiosError(e) && !e.response;
+      if (isNetworkError) {
+        await savePendingReceipt({
+          localId: Date.now().toString(),
+          imageUri,
+          description: description.trim(),
+          qrUrl,
+          savedAt: new Date().toISOString(),
+        });
+        Alert.alert(
+          'Sačuvano lokalno',
+          'Račun je sačuvan na uređaju i biće poslat kada se uspostavi konekcija.',
+          [{ text: 'OK', onPress: () => navigation.navigate('Main') }],
+        );
+      } else {
+        Alert.alert('Greška', getApiErrorMessage(e, 'Greška pri slanju računa. Pokušajte ponovo.'));
+      }
     } finally {
+      submitting.current = false;
       setLoading(false);
     }
   };

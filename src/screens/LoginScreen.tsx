@@ -18,6 +18,7 @@ export function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [biometricLoading, setBiometricLoading] = useState(false);
   const [error, setError] = useState('');
   const biometricAttempted = useRef(false);
 
@@ -33,12 +34,11 @@ export function LoginScreen() {
   const hasSavedSession = biometricEnabled && token !== null;
 
   const handleBiometricLogin = useCallback(async () => {
-    setLoading(true);
+    setBiometricLoading(true);
     setError('');
     try {
       const result = await authenticateWithBiometric();
       if (!result.success) {
-        setLoading(false);
         if (result.reason === 'lockout') {
           setError('Biometrija privremeno zaključana. Koristite email i lozinku.');
         } else if (result.reason === 'no_token') {
@@ -47,7 +47,8 @@ export function LoginScreen() {
       }
     } catch {
       setError('Biometrijska prijava nije uspela.');
-      setLoading(false);
+    } finally {
+      setBiometricLoading(false);
     }
   }, [authenticateWithBiometric]);
 
@@ -89,11 +90,11 @@ export function LoginScreen() {
             <TouchableOpacity
               style={styles.biometricBtn}
               onPress={handleBiometricLogin}
-              disabled={loading}
+              disabled={biometricLoading}
               accessibilityLabel={biometricInfo.label}
               accessibilityRole="button"
             >
-              {loading ? (
+              {biometricLoading ? (
                 <ActivityIndicator color={colors.brand} />
               ) : (
                 <>

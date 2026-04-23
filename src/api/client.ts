@@ -36,9 +36,12 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL
 export const api = axios.create({ baseURL: API_URL, timeout: 30000 });
 
 api.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().token;
+  const { token, user } = useAuthStore.getState();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  }
+  if (user?.defaultTenantId) {
+    config.headers['X-Tenant-Id'] = user.defaultTenantId;
   }
   return config;
 });

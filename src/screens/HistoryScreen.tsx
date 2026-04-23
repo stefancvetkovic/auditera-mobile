@@ -71,13 +71,16 @@ export function HistoryScreen() {
     for (const p of current) {
       try {
         const formData = new FormData();
-        formData.append('image', {
-          uri: p.imageUri,
-          type: 'image/jpeg',
-          name: 'receipt.jpg',
-        } as unknown as Blob);
+        if (p.qrUrl) {
+          formData.append('fiscalQrUrl', p.qrUrl);
+        } else {
+          formData.append('image', {
+            uri: p.imageUri,
+            type: 'image/jpeg',
+            name: 'receipt.jpg',
+          } as unknown as Blob);
+        }
         if (p.description) formData.append('description', p.description);
-        if (p.qrUrl) formData.append('fiscalQrUrl', p.qrUrl);
         formData.append('submittedVia', '0');
         await receiptsApi.submit(formData);
         await removePendingReceipt(p.localId);
