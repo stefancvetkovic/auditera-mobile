@@ -18,7 +18,7 @@ import { useMenuStore } from '../stores/menuStore';
 export type RootStackParamList = {
   Login: undefined;
   Main: undefined;
-  Preview: { imageUri: string; qrUrl?: string };
+  Preview: { imageUri: string };
   Camera: undefined;
   ReceiptDetail: {
     receiptId: string;

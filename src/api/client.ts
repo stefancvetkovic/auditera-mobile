@@ -81,6 +81,14 @@ export const receiptsApi = {
       headers: { 'Content-Type': 'multipart/form-data' },
       timeout: 60000,
     }),
+  submitFiscal: (fiscalQrUrl: string, description?: string) => {
+    const params = new URLSearchParams({ fiscalQrUrl, submittedVia: '0' });
+    if (description?.trim()) params.append('description', description.trim());
+    return api.post('/api/v1/receipts', params.toString(), {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      timeout: 30000,
+    });
+  },
   getMyReceipts: (page = 1) =>
     api.get('/api/v1/receipts/my', { params: { pageNumber: page, pageSize: 20 } }),
   downloadReceiptImage: (receiptId: string) =>

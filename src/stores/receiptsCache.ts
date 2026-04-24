@@ -23,7 +23,6 @@ export interface PendingReceipt {
   localId: string;
   imageUri: string;
   description: string;
-  qrUrl: string | undefined;
   savedAt: string;
 }
 

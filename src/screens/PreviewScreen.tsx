@@ -27,7 +27,7 @@ type Props = {
 const SUBMISSION_SOURCE_MOBILE = '0';
 
 export function PreviewScreen({ navigation, route }: Props) {
-  const { imageUri, qrUrl } = route.params;
+  const { imageUri } = route.params;
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const submitting = React.useRef(false);
@@ -40,19 +40,11 @@ export function PreviewScreen({ navigation, route }: Props) {
     setLoading(true);
     try {
       const formData = new FormData();
-
-      // Always upload the captured photo — backend stores it for both regular and fiscal receipts.
-      // Sending multipart/form-data without a file on iOS omits the boundary, causing parse errors.
       formData.append('image', {
         uri: imageUri,
         type: 'image/jpeg',
         name: 'receipt.jpg',
       } as unknown as Blob);
-
-      if (qrUrl) {
-        formData.append('fiscalQrUrl', qrUrl);
-      }
-
       if (description.trim()) {
         formData.append('description', description.trim());
       }
@@ -67,7 +59,6 @@ export function PreviewScreen({ navigation, route }: Props) {
           localId: Date.now().toString(),
           imageUri,
           description: description.trim(),
-          qrUrl,
           savedAt: new Date().toISOString(),
         });
         Alert.alert(
@@ -89,16 +80,6 @@ export function PreviewScreen({ navigation, route }: Props) {
       <Text style={styles.heading}>Pregled računa</Text>
 
       <Image source={{ uri: imageUri }} style={styles.preview} resizeMode="contain" />
-
-      {qrUrl ? (
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>Fiskalni QR detektovan</Text>
-        </View>
-      ) : (
-        <View style={[styles.badge, styles.badgeGray]}>
-          <Text style={styles.badgeText}>Obični račun</Text>
-        </View>
-      )}
 
       <Text style={styles.label}>Opis (opciono)</Text>
       <TextInput
@@ -146,17 +127,7 @@ function createStyles(colors: ColorScheme) {
     container: { flex: 1, backgroundColor: colors.background },
     content: { padding: 20, paddingBottom: 40 },
     heading: { fontSize: 22, fontWeight: '700', color: colors.text, marginBottom: 16 },
-    preview: { width: '100%', height: 300, borderRadius: 12, backgroundColor: colors.surface, marginBottom: 12 },
-    badge: {
-      alignSelf: 'flex-start',
-      backgroundColor: colors.badgeFiscalBg,
-      paddingHorizontal: 12,
-      paddingVertical: 4,
-      borderRadius: 12,
-      marginBottom: 16,
-    },
-    badgeGray: { backgroundColor: colors.badgeImageBg },
-    badgeText: { color: colors.badgeFiscalText, fontSize: 12, fontWeight: '600' },
+    preview: { width: '100%', height: 300, borderRadius: 12, backgroundColor: colors.surface, marginBottom: 20 },
     label: { fontSize: 13, color: colors.textSecondary, marginBottom: 6, fontWeight: '500' },
     input: {
       backgroundColor: colors.inputBackground,

@@ -12,6 +12,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import type { CameraType, BarcodeScanningResult } from 'expo-camera';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
+import { receiptsApi, getApiErrorMessage } from '../api/client';
 import { useThemeStore } from '../stores/themeStore';
 import type { ColorScheme } from '../theme/colors';
 import type { RootStackParamList } from '../navigation/AppNavigator';
@@ -23,16 +24,18 @@ type Props = {
 export function CameraScreen({ navigation }: Props) {
   const [permission, requestPermission] = useCameraPermissions();
   const [facing] = useState<CameraType>('back');
-  const [qrUrl, setQrUrl] = useState<string | undefined>(undefined);
-  const [capturing, setCapturing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const cameraRef = useRef<CameraView>(null);
+  const [capturing, setCapturing] = useState(false);
+  const qrDetectedRef = useRef(false);
   const colors = useThemeStore((s) => s.colors);
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  // Reset QR state every time this screen gains focus so stale badge doesn't persist
+  // Reset detection state every time this screen gains focus
   useFocusEffect(
     useCallback(() => {
-      setQrUrl(undefined);
+      qrDetectedRef.current = false;
+      setIsSubmitting(false);
     }, []),
   );
 
@@ -40,12 +43,43 @@ export function CameraScreen({ navigation }: Props) {
 
   const handleBarcodeScanned = useCallback(
     (result: BarcodeScanningResult) => {
-      if (result.type === 'qr' && result.data !== qrUrl) {
-        setQrUrl(result.data);
-        Vibration.vibrate(100);
-      }
+      if (result.type !== 'qr' || qrDetectedRef.current) return;
+
+      qrDetectedRef.current = true;
+      Vibration.vibrate(100);
+
+      Alert.prompt(
+        'Fiskalni račun detektovan',
+        'Unesite opis (opciono):',
+        [
+          {
+            text: 'Otkaži',
+            style: 'cancel',
+            onPress: () => {
+              qrDetectedRef.current = false;
+            },
+          },
+          {
+            text: 'Pošalji',
+            onPress: async (description) => {
+              setIsSubmitting(true);
+              try {
+                await receiptsApi.submitFiscal(result.data, description);
+                navigation.navigate('Main');
+              } catch (e: unknown) {
+                Alert.alert('Greška', getApiErrorMessage(e, 'Greška pri slanju računa.'));
+                qrDetectedRef.current = false;
+              } finally {
+                setIsSubmitting(false);
+              }
+            },
+          },
+        ],
+        'plain-text',
+        '',
+      );
     },
-    [qrUrl],
+    [navigation],
   );
 
   if (!permission) {
@@ -69,7 +103,7 @@ export function CameraScreen({ navigation }: Props) {
     try {
       const photo = await cameraRef.current.takePictureAsync({ quality: 0.8, base64: false });
       if (photo) {
-        navigation.navigate('Preview', { imageUri: photo.uri, qrUrl });
+        navigation.navigate('Preview', { imageUri: photo.uri });
       }
     } catch {
       Alert.alert('Greška', 'Nije moguće napraviti fotografiju.');
@@ -94,23 +128,17 @@ export function CameraScreen({ navigation }: Props) {
             <View style={[styles.reticleCorner, styles.reticleTopRight]} />
             <View style={[styles.reticleCorner, styles.reticleBottomLeft]} />
             <View style={[styles.reticleCorner, styles.reticleBottomRight]} />
-            {qrUrl ? (
-              <View style={styles.qrBadge}>
-                <Text style={styles.qrBadgeText}>QR Fiskalni račun detektovan</Text>
-              </View>
-            ) : (
-              <Text style={styles.reticleHint}>Usmjeri na QR kod fiskalnog računa</Text>
-            )}
+            <Text style={styles.reticleHint}>Usmjeri na QR kod fiskalnog računa</Text>
           </View>
 
           <TouchableOpacity
-            style={[styles.shutter, capturing && styles.shutterDisabled]}
+            style={[styles.shutter, (capturing || isSubmitting) && styles.shutterDisabled]}
             onPress={handleCapture}
-            disabled={capturing}
+            disabled={capturing || isSubmitting}
             accessibilityLabel="Slikaj račun"
             accessibilityRole="button"
           >
-            {capturing ? (
+            {capturing || isSubmitting ? (
               <ActivityIndicator color="#fff" />
             ) : (
               <View style={styles.shutterInner} />
@@ -180,13 +208,6 @@ function createStyles(colors: ColorScheme) {
       borderRightWidth: CORNER_THICKNESS,
       borderBottomRightRadius: 4,
     },
-    qrBadge: {
-      backgroundColor: 'rgba(76, 175, 80, 0.9)',
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 16,
-    },
-    qrBadgeText: { color: '#fff', fontWeight: '600', fontSize: 12 },
     reticleHint: {
       color: 'rgba(255,255,255,0.7)',
       fontSize: 12,
