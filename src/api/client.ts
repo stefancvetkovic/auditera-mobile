@@ -95,6 +95,10 @@ export const receiptsApi = {
     api.get<ArrayBuffer>(`/api/v1/receipts/${receiptId}/image`, {
       responseType: 'arraybuffer',
     }),
+  getCategories: () =>
+    api.get('/api/v1/codelists/receipt-categories', { params: { onlyActive: true } }),
+  updateCategory: (receiptId: string, categoryId: string) =>
+    api.patch(`/api/v1/receipts/${receiptId}/category`, { categoryId }),
 };
 
 export const authApi = {

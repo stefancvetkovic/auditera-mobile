@@ -12,6 +12,9 @@ interface CachedReceiptItem {
   period: string;
   isFiscal: boolean;
   submittedAt: string;
+  suggestedCategoryId: string | null;
+  suggestedCategoryName: string | null;
+  aiConfidence: number | null;
 }
 
 interface CachedReceipts {

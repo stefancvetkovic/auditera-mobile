@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   TouchableOpacity,
 } from 'react-native';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +18,7 @@ import type { PendingReceipt } from '../stores/receiptsCache';
 import { useThemeStore } from '../stores/themeStore';
 import type { ColorScheme } from '../theme/colors';
 import type { RootStackParamList } from '../navigation/AppNavigator';
+import { CategoryBottomSheet } from '../components/CategoryBottomSheet';
 
 interface ReceiptItem {
   id: string;
@@ -27,6 +28,9 @@ interface ReceiptItem {
   period: string;
   isFiscal: boolean;
   submittedAt: string;
+  suggestedCategoryId: string | null;
+  suggestedCategoryName: string | null;
+  aiConfidence: number | null;
 }
 
 interface ReceiptsApiBody {
@@ -43,10 +47,14 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export function HistoryScreen() {
   const navigation = useNavigation<Nav>();
+  const queryClient = useQueryClient();
   const colors = useThemeStore((s) => s.colors);
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [cachedItems, setCachedItems] = useState<ReceiptItem[] | null>(null);
   const [pending, setPending] = useState<PendingReceipt[]>([]);
+  const [categorySheet, setCategorySheet] = useState<{ visible: boolean; receiptId: string | null; currentCategoryId: string | null }>({
+    visible: false, receiptId: null, currentCategoryId: null,
+  });
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery<ReceiptsApiBody>({
     queryKey: ['myReceipts'],
@@ -112,6 +120,18 @@ export function HistoryScreen() {
     });
   }, [navigation]);
 
+  const handleCategorySelect = useCallback(async (categoryId: string) => {
+    const receiptId = categorySheet.receiptId;
+    if (!receiptId) return;
+    setCategorySheet({ visible: false, receiptId: null, currentCategoryId: null });
+    try {
+      await receiptsApi.updateCategory(receiptId, categoryId);
+      void queryClient.invalidateQueries({ queryKey: ['myReceipts'] });
+    } catch {
+      // silent fail — user can retry
+    }
+  }, [categorySheet.receiptId, queryClient]);
+
   const renderItem = useCallback(({ item }: { item: ReceiptItem }) => (
     <TouchableOpacity
       style={styles.card}
@@ -131,7 +151,23 @@ export function HistoryScreen() {
       </View>
       <Text style={styles.fileName} numberOfLines={1}>{item.fileName}</Text>
       {item.description ? <Text style={styles.desc}>{item.description}</Text> : null}
-      <Text style={styles.meta}>{item.period} · {new Date(item.submittedAt).toLocaleDateString('sr-RS')}</Text>
+      <View style={styles.cardFooter}>
+        <Text style={styles.meta}>{item.period} · {new Date(item.submittedAt).toLocaleDateString('sr-RS')}</Text>
+        {item.suggestedCategoryName ? (
+          <TouchableOpacity
+            style={[styles.badge, styles.badgeCategory]}
+            onPress={(e) => {
+              e.stopPropagation();
+              setCategorySheet({ visible: true, receiptId: item.id, currentCategoryId: item.suggestedCategoryId });
+            }}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.badgeText, { color: colors.badgeCategoryText }]}>
+              {item.suggestedCategoryName}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
     </TouchableOpacity>
   ), [styles, colors, handlePress]);
 
@@ -210,6 +246,12 @@ export function HistoryScreen() {
           <Text style={styles.offlineBannerText}>Konekcija ka serveru trenutno nije moguća</Text>
         </View>
       )}
+      <CategoryBottomSheet
+        visible={categorySheet.visible}
+        currentCategoryId={categorySheet.currentCategoryId}
+        onSelect={handleCategorySelect}
+        onClose={() => setCategorySheet({ visible: false, receiptId: null, currentCategoryId: null })}
+      />
     </View>
   );
 }
@@ -239,6 +281,8 @@ function createStyles(colors: ColorScheme) {
     badgeFiscal: { backgroundColor: colors.badgeFiscalBg },
     badgeImage: { backgroundColor: colors.badgeImageBg },
     badgeText: { fontSize: 11, fontWeight: '600' },
+    badgeCategory: { backgroundColor: colors.badgeCategoryBg },
+    cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
     fileName: { fontSize: 13, color: colors.textSecondary, marginBottom: 4 },
     desc: { fontSize: 13, color: colors.text, marginBottom: 4 },
     meta: { fontSize: 11, color: colors.textMuted },

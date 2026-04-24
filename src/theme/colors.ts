@@ -13,6 +13,8 @@ export interface ColorScheme {
   badgeFiscalText: string;
   badgeImageBg: string;
   badgeImageText: string;
+  badgeCategoryBg: string;
+  badgeCategoryText: string;
   tabActive: string;
   tabInactive: string;
   overlay: string;
@@ -40,6 +42,8 @@ export const lightColors: ColorScheme = {
   badgeFiscalText: '#2e7d32',
   badgeImageBg: '#e3f2fd',
   badgeImageText: '#1565c0',
+  badgeCategoryBg: '#fff3e0',
+  badgeCategoryText: '#e65100',
   tabActive: '#1a1a2e',
   tabInactive: '#999',
   overlay: 'rgba(0,0,0,0.5)',
@@ -67,6 +71,8 @@ export const darkColors: ColorScheme = {
   badgeFiscalText: '#6fcf6f',
   badgeImageBg: '#1a2e42',
   badgeImageText: '#64b5f6',
+  badgeCategoryBg: '#3d2800',
+  badgeCategoryText: '#ffb74d',
   tabActive: '#f0f0f5',
   tabInactive: '#707080',
   overlay: 'rgba(0,0,0,0.7)',
