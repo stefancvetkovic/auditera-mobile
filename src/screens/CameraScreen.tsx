@@ -7,9 +7,14 @@ import {
   Alert,
   ActivityIndicator,
   Vibration,
+  Animated,
 } from 'react-native';
-import { CameraView, useCameraPermissions } from 'expo-camera';
-import type { CameraType, BarcodeScanningResult } from 'expo-camera';
+import {
+  Camera,
+  useCameraDevice,
+  useCameraPermission,
+  useCodeScanner,
+} from 'react-native-vision-camera';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { receiptsApi, getApiErrorMessage } from '../api/client';
@@ -22,16 +27,16 @@ type Props = {
 };
 
 export function CameraScreen({ navigation }: Props) {
-  const [permission, requestPermission] = useCameraPermissions();
-  const [facing] = useState<CameraType>('back');
+  const { hasPermission, requestPermission } = useCameraPermission();
+  const device = useCameraDevice('back');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const cameraRef = useRef<CameraView>(null);
   const [capturing, setCapturing] = useState(false);
+  const cameraRef = useRef<Camera>(null);
   const qrDetectedRef = useRef(false);
+  const bannerAnim = useRef(new Animated.Value(-60)).current;
   const colors = useThemeStore((s) => s.colors);
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  // Reset detection state every time this screen gains focus
   useFocusEffect(
     useCallback(() => {
       qrDetectedRef.current = false;
@@ -39,60 +44,76 @@ export function CameraScreen({ navigation }: Props) {
     }, []),
   );
 
-  const barcodeScannerSettings = useMemo(() => ({ barcodeTypes: ['qr'] as const }), []);
+  const showSuccessBanner = useCallback(() => {
+    Animated.sequence([
+      Animated.timing(bannerAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
+      Animated.delay(2000),
+      Animated.timing(bannerAnim, { toValue: -60, duration: 300, useNativeDriver: true }),
+    ]).start(() => navigation.navigate('Main'));
+  }, [bannerAnim, navigation]);
 
-  const handleBarcodeScanned = useCallback(
-    (result: BarcodeScanningResult) => {
-      if (result.type !== 'qr' || qrDetectedRef.current) return;
+  const codeScanner = useCodeScanner({
+    codeTypes: ['qr'],
+    onCodeScanned: useCallback(
+      (codes) => {
+        if (codes.length === 0 || qrDetectedRef.current || isSubmitting) return;
+        const qrValue = codes[0].value;
+        if (!qrValue) return;
 
-      qrDetectedRef.current = true;
-      Vibration.vibrate(100);
+        qrDetectedRef.current = true;
+        Vibration.vibrate(100);
 
-      Alert.prompt(
-        'Fiskalni račun detektovan',
-        'Unesite opis (opciono):',
-        [
-          {
-            text: 'Otkaži',
-            style: 'cancel',
-            onPress: () => {
-              qrDetectedRef.current = false;
-            },
-          },
-          {
-            text: 'Pošalji',
-            onPress: async (description) => {
-              setIsSubmitting(true);
-              try {
-                await receiptsApi.submitFiscal(result.data, description);
-                navigation.navigate('Main');
-              } catch (e: unknown) {
-                let detail = 'Nepoznata greška';
-                if (e instanceof Error) {
-                  detail = `${e.name}: ${e.message}\n\n${e.stack ?? ''}`;
-                } else {
-                  try { detail = JSON.stringify(e, null, 2); } catch { detail = String(e); }
-                }
-                Alert.alert('Greška [DEBUG]', detail);
+        Alert.prompt(
+          'Fiskalni račun detektovan',
+          'Unesite opis (opciono):',
+          [
+            {
+              text: 'Otkaži',
+              style: 'cancel',
+              onPress: () => {
                 qrDetectedRef.current = false;
-              } finally {
-                setIsSubmitting(false);
-              }
+              },
             },
-          },
-        ],
-        'plain-text',
-        '',
-      );
-    },
-    [navigation],
-  );
+            {
+              text: 'Pošalji',
+              onPress: async (description: string | undefined) => {
+                setIsSubmitting(true);
+                try {
+                  await receiptsApi.submitFiscal(qrValue, description);
+                  showSuccessBanner();
+                } catch (e: unknown) {
+                  Alert.alert('Greška', getApiErrorMessage(e, 'Greška pri slanju računa. Pokušajte ponovo.'));
+                  qrDetectedRef.current = false;
+                } finally {
+                  setIsSubmitting(false);
+                }
+              },
+            },
+          ],
+          'plain-text',
+          '',
+        );
+      },
+      [isSubmitting, showSuccessBanner],
+    ),
+  });
 
-  if (!permission) {
-    return <View style={styles.center}><ActivityIndicator size="large" color={colors.brand} /></View>;
-  }
+  const handleCapture = async () => {
+    if (!cameraRef.current || capturing) return;
+    setCapturing(true);
+    try {
+      const photo = await cameraRef.current.takePhoto();
+      if (photo) {
+        navigation.navigate('Preview', { imageUri: `file://${photo.path}` });
+      }
+    } catch {
+      Alert.alert('Greška', 'Nije moguće napraviti fotografiju.');
+    } finally {
+      setCapturing(false);
+    }
+  };
 
-  if (!permission.granted) {
+  if (!hasPermission) {
     return (
       <View style={styles.center}>
         <Text style={styles.permText}>Potrebna je dozvola za kameru.</Text>
@@ -103,55 +124,57 @@ export function CameraScreen({ navigation }: Props) {
     );
   }
 
-  const handleCapture = async () => {
-    if (!cameraRef.current || capturing) return;
-    setCapturing(true);
-    try {
-      const photo = await cameraRef.current.takePictureAsync({ quality: 0.8, base64: false });
-      if (photo) {
-        navigation.navigate('Preview', { imageUri: photo.uri });
-      }
-    } catch {
-      Alert.alert('Greška', 'Nije moguće napraviti fotografiju.');
-    } finally {
-      setCapturing(false);
-    }
-  };
+  if (!device) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={colors.brand} />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      <CameraView
-        ref={cameraRef}
-        style={styles.camera}
-        facing={facing}
-        onBarcodeScanned={handleBarcodeScanned}
-        barcodeScannerSettings={barcodeScannerSettings}
+      {/* Success banner */}
+      <Animated.View
+        style={[styles.successBanner, { transform: [{ translateY: bannerAnim }] }]}
+        pointerEvents="none"
       >
-        <View style={styles.overlay}>
-          {/* QR scan guide reticle */}
-          <View style={styles.reticleContainer}>
-            <View style={[styles.reticleCorner, styles.reticleTopLeft]} />
-            <View style={[styles.reticleCorner, styles.reticleTopRight]} />
-            <View style={[styles.reticleCorner, styles.reticleBottomLeft]} />
-            <View style={[styles.reticleCorner, styles.reticleBottomRight]} />
-            <Text style={styles.reticleHint}>Usmjeri na QR kod fiskalnog računa</Text>
-          </View>
+        <Text style={styles.successBannerText}>Račun uspješno poslan ✓</Text>
+      </Animated.View>
 
-          <TouchableOpacity
-            style={[styles.shutter, (capturing || isSubmitting) && styles.shutterDisabled]}
-            onPress={handleCapture}
-            disabled={capturing || isSubmitting}
-            accessibilityLabel="Slikaj račun"
-            accessibilityRole="button"
-          >
-            {capturing || isSubmitting ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <View style={styles.shutterInner} />
-            )}
-          </TouchableOpacity>
+      <Camera
+        ref={cameraRef}
+        style={StyleSheet.absoluteFill}
+        device={device}
+        isActive={true}
+        photo={true}
+        codeScanner={codeScanner}
+      />
+
+      <View style={styles.overlay}>
+        {/* QR scan guide reticle */}
+        <View style={styles.reticleContainer}>
+          <View style={[styles.reticleCorner, styles.reticleTopLeft]} />
+          <View style={[styles.reticleCorner, styles.reticleTopRight]} />
+          <View style={[styles.reticleCorner, styles.reticleBottomLeft]} />
+          <View style={[styles.reticleCorner, styles.reticleBottomRight]} />
+          <Text style={styles.reticleHint}>Usmjeri na QR kod fiskalnog računa</Text>
         </View>
-      </CameraView>
+
+        <TouchableOpacity
+          style={[styles.shutter, (capturing || isSubmitting) && styles.shutterDisabled]}
+          onPress={handleCapture}
+          disabled={capturing || isSubmitting}
+          accessibilityLabel="Slikaj račun"
+          accessibilityRole="button"
+        >
+          {capturing || isSubmitting ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <View style={styles.shutterInner} />
+          )}
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -166,13 +189,28 @@ function createStyles(colors: ColorScheme) {
     container: { flex: 1, backgroundColor: '#000' },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: colors.background },
     permText: { fontSize: 16, textAlign: 'center', marginBottom: 16, color: colors.text },
-    camera: { flex: 1 },
     overlay: {
-      flex: 1,
+      ...StyleSheet.absoluteFillObject,
       justifyContent: 'space-between',
       alignItems: 'center',
       paddingTop: 80,
       paddingBottom: 48,
+    },
+    successBanner: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      zIndex: 100,
+      backgroundColor: '#22c55e',
+      paddingVertical: 14,
+      paddingHorizontal: 20,
+      alignItems: 'center',
+    },
+    successBannerText: {
+      color: '#fff',
+      fontSize: 16,
+      fontWeight: '600',
     },
     reticleContainer: {
       width: RETICLE_SIZE,

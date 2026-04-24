@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.ostrichtech.auditera",
-      "buildNumber": "2"
+      "buildNumber": "3"
     },
     "android": {
       "package": "com.ostrichtech.auditera",
@@ -27,9 +27,10 @@
     "plugins": [
       "expo-secure-store",
       [
-        "expo-camera",
+        "react-native-vision-camera",
         {
-          "cameraPermission": "Dozvolite pristup kameri za slikanje računa."
+          "cameraPermissionText": "Dozvolite pristup kameri za slikanje računa.",
+          "enableMicrophonePermission": false
         }
       ],
       [

@@ -71,15 +71,11 @@ export function HistoryScreen() {
     for (const p of current) {
       try {
         const formData = new FormData();
-        if (p.qrUrl) {
-          formData.append('fiscalQrUrl', p.qrUrl);
-        } else {
-          formData.append('image', {
-            uri: p.imageUri,
-            type: 'image/jpeg',
-            name: 'receipt.jpg',
-          } as unknown as Blob);
-        }
+        formData.append('image', {
+          uri: p.imageUri,
+          type: 'image/jpeg',
+          name: 'receipt.jpg',
+        } as unknown as Blob);
         if (p.description) formData.append('description', p.description);
         formData.append('submittedVia', '0');
         await receiptsApi.submit(formData);
@@ -167,9 +163,9 @@ export function HistoryScreen() {
         <View key={p.localId} style={[styles.card, styles.pendingCard]}>
           <View style={styles.cardHeader}>
             <Text style={styles.seq}>Na čekanju</Text>
-            <View style={[styles.badge, p.qrUrl ? styles.badgeFiscal : styles.badgeImage]}>
-              <Text style={[styles.badgeText, { color: p.qrUrl ? colors.badgeFiscalText : colors.badgeImageText }]}>
-                {p.qrUrl ? 'Fiskalni' : 'Slika'}
+            <View style={[styles.badge, styles.badgeImage]}>
+              <Text style={[styles.badgeText, { color: colors.badgeImageText }]}>
+                Slika
               </Text>
             </View>
           </View>
