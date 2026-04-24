@@ -41,16 +41,16 @@ export function PreviewScreen({ navigation, route }: Props) {
     try {
       const formData = new FormData();
 
+      // Always upload the captured photo — backend stores it for both regular and fiscal receipts.
+      // Sending multipart/form-data without a file on iOS omits the boundary, causing parse errors.
+      formData.append('image', {
+        uri: imageUri,
+        type: 'image/jpeg',
+        name: 'receipt.jpg',
+      } as unknown as Blob);
+
       if (qrUrl) {
-        // Fiscal receipt: send only the QR URL, no image upload
         formData.append('fiscalQrUrl', qrUrl);
-      } else {
-        // Regular receipt: send image only
-        formData.append('image', {
-          uri: imageUri,
-          type: 'image/jpeg',
-          name: 'receipt.jpg',
-        } as unknown as Blob);
       }
 
       if (description.trim()) {
