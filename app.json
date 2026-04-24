@@ -14,7 +14,8 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.ostrichtech.auditera"
+      "bundleIdentifier": "com.ostrichtech.auditera",
+      "buildNumber": "2"
     },
     "android": {
       "package": "com.ostrichtech.auditera",

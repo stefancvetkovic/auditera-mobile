@@ -67,7 +67,13 @@ export function CameraScreen({ navigation }: Props) {
                 await receiptsApi.submitFiscal(result.data, description);
                 navigation.navigate('Main');
               } catch (e: unknown) {
-                Alert.alert('Greška', getApiErrorMessage(e, 'Greška pri slanju računa.'));
+                let detail = 'Nepoznata greška';
+                if (e instanceof Error) {
+                  detail = `${e.name}: ${e.message}\n\n${e.stack ?? ''}`;
+                } else {
+                  try { detail = JSON.stringify(e, null, 2); } catch { detail = String(e); }
+                }
+                Alert.alert('Greška [DEBUG]', detail);
                 qrDetectedRef.current = false;
               } finally {
                 setIsSubmitting(false);
