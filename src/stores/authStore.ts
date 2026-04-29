@@ -42,6 +42,15 @@ interface AuthState {
 const BIOMETRIC_ENABLED_KEY = 'biometric_enabled';
 const BIOMETRIC_PROMPTED_KEY = 'biometric_prompted';
 
+function isTokenExpired(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return typeof payload.exp === 'number' && payload.exp * 1000 < Date.now();
+  } catch {
+    return true;
+  }
+}
+
 function isAuthUser(value: unknown): value is AuthUser {
   if (typeof value !== 'object' || value === null) return false;
   const v = value as Record<string, unknown>;
@@ -145,6 +154,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
     } catch {
       // Corrupted store
+    }
+
+    if (token && isTokenExpired(token)) {
+      await SecureStore.deleteItemAsync('auth_token');
+      await SecureStore.deleteItemAsync('auth_user');
+      token = null;
+      user = null;
     }
 
     const hasValidSession = token !== null && user !== null;
