@@ -67,7 +67,10 @@ export function PreviewScreen({ navigation, route }: Props) {
           [{ text: 'OK', onPress: () => navigation.navigate('Main') }],
         );
       } else {
-        Alert.alert('Greška', getApiErrorMessage(e, 'Greška pri slanju računa. Pokušajte ponovo.'));
+        const detail = isAxiosError(e)
+          ? `Status: ${e.response?.status}\n\n${JSON.stringify(e.response?.data, null, 2)}`
+          : String(e);
+        Alert.alert('Greška pri slanju', detail);
       }
     } finally {
       submitting.current = false;

@@ -17,7 +17,8 @@ import {
 } from 'react-native-vision-camera';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
-import { receiptsApi, getApiErrorMessage } from '../api/client';
+import { isAxiosError } from 'axios';
+import { receiptsApi } from '../api/client';
 import { useThemeStore } from '../stores/themeStore';
 import type { ColorScheme } from '../theme/colors';
 import type { RootStackParamList } from '../navigation/AppNavigator';
@@ -82,7 +83,10 @@ export function CameraScreen({ navigation }: Props) {
                   await receiptsApi.submitFiscal(qrValue, description);
                   showSuccessBanner();
                 } catch (e: unknown) {
-                  Alert.alert('Greška', getApiErrorMessage(e, 'Greška pri slanju računa. Pokušajte ponovo.'));
+                  const detail = isAxiosError(e)
+                    ? `Status: ${e.response?.status}\n\n${JSON.stringify(e.response?.data, null, 2)}`
+                    : String(e);
+                  Alert.alert('Greška pri slanju', detail);
                   qrDetectedRef.current = false;
                 } finally {
                   setIsSubmitting(false);
