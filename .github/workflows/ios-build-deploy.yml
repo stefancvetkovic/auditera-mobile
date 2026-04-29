@@ -11,17 +11,48 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select Xcode 26
+      - name: Diagnose Xcode environment
         run: |
-          XCODE_PATH=$(find /Applications -maxdepth 1 -name 'Xcode_26*' -print -quit 2>/dev/null || true)
-          if [ -z "$XCODE_PATH" ]; then
-            echo "Available Xcode versions:"
-            ls /Applications/ | grep -i xcode
-            XCODE_PATH=$(ls -d /Applications/Xcode_2*.app 2>/dev/null | sort -V | tail -1)
-          fi
-          echo "Using Xcode at: $XCODE_PATH"
-          sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
+          echo "=== macOS version ==="
+          sw_vers
+          echo ""
+          echo "=== All Xcode installations ==="
+          ls -la /Applications/ | grep -i xcode
+          echo ""
+          echo "=== Current xcode-select path ==="
+          xcode-select -p
+          echo ""
+          echo "=== Current Xcode version ==="
           xcodebuild -version
+          echo ""
+          echo "=== Available iOS SDKs ==="
+          xcodebuild -showsdks 2>/dev/null | grep -i ios || echo "No iOS SDKs found"
+
+      - name: Select latest Xcode
+        run: |
+          echo "=== Finding Xcode with iOS 26 SDK ==="
+          SELECTED=""
+          for xc in $(ls -d /Applications/Xcode*.app 2>/dev/null | sort -rV); do
+            SDK_CHECK=$("$xc/Contents/Developer/usr/bin/xcodebuild" -showsdks 2>/dev/null | grep -i 'iphoneos26' || true)
+            if [ -n "$SDK_CHECK" ]; then
+              SELECTED="$xc"
+              echo "Found Xcode with iOS 26 SDK: $SELECTED"
+              break
+            fi
+          done
+
+          if [ -z "$SELECTED" ]; then
+            echo "WARNING: No Xcode with iOS 26 SDK found. Using latest available."
+            SELECTED=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -rV | head -1)
+            echo "Falling back to: $SELECTED"
+          fi
+
+          sudo xcode-select -s "$SELECTED/Contents/Developer"
+          echo ""
+          echo "=== Selected Xcode ==="
+          xcodebuild -version
+          echo ""
+          echo "=== iOS SDKs in selected Xcode ==="
           xcodebuild -showsdks | grep -i ios
 
       - name: Setup Node.js
@@ -117,6 +148,22 @@ jobs:
             DEVELOPMENT_TEAM=APZ5K79LV4 \
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER"
 
+      - name: Verify archive SDK
+        run: |
+          echo "=== Archive Info.plist ==="
+          /usr/libexec/PlistBuddy -c "Print :ApplicationProperties:DTSDKName" \
+            "$RUNNER_TEMP/Auditera.xcarchive/Info.plist" 2>/dev/null || echo "DTSDKName not found"
+          /usr/libexec/PlistBuddy -c "Print :ApplicationProperties:DTXcodeBuild" \
+            "$RUNNER_TEMP/Auditera.xcarchive/Info.plist" 2>/dev/null || echo "DTXcodeBuild not found"
+          /usr/libexec/PlistBuddy -c "Print :ApplicationProperties:DTXcode" \
+            "$RUNNER_TEMP/Auditera.xcarchive/Info.plist" 2>/dev/null || echo "DTXcode not found"
+          echo ""
+          echo "=== App binary SDK check ==="
+          APP_PATH=$(find "$RUNNER_TEMP/Auditera.xcarchive/Products" -name "*.app" -print -quit 2>/dev/null)
+          if [ -n "$APP_PATH" ]; then
+            otool -l "$APP_PATH/Auditera" 2>/dev/null | grep -A2 'sdk\|minos\|LC_BUILD_VERSION' | head -20
+          fi
+
       - name: Export IPA
         run: |
           xcodebuild -exportArchive \
@@ -133,6 +180,17 @@ jobs:
           pip3 install codemagic-cli-tools --break-system-packages
           IPA=$(find $RUNNER_TEMP/ipa -name "*.ipa" | head -1)
           echo "Uploading: $IPA"
+          echo ""
+          echo "=== IPA contents ==="
+          unzip -l "$IPA" | grep -E 'Info\.plist|Auditera$' | head -5
+          echo ""
           app-store-connect publish \
             --path "$IPA" \
-            --max-build-processing-wait 0
+            --max-build-processing-wait 0 \
+            --verbose 2>&1 || {
+              echo ""
+              echo "=== UPLOAD FAILED ==="
+              echo "IPA path: $IPA"
+              echo "IPA size: $(du -h "$IPA" | cut -f1)"
+              exit 1
+            }
