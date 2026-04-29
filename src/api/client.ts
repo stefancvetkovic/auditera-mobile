@@ -58,7 +58,8 @@ api.interceptors.response.use(
 
 export function getApiErrorMessage(error: unknown, fallback: string): string {
   if (axios.isAxiosError(error)) {
-    const msg = error.response?.data?.message;
+    const data = error.response?.data;
+    const msg = data?.errors?.[0] ?? data?.message;
     if (typeof msg === 'string' && msg.length > 0) return msg;
   }
   return fallback;
@@ -78,7 +79,6 @@ export function arrayBufferToBase64(buffer: ArrayBuffer): string {
 export const receiptsApi = {
   submit: (formData: FormData) =>
     api.post('/api/v1/receipts', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
       timeout: 60000,
     }),
   submitFiscal: (fiscalQrUrl: string, description?: string) => {
