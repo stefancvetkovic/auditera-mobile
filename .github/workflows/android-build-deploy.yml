@@ -2,9 +2,6 @@ name: Android Build & Deploy to Google Play
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - '.github/workflows/android-build-deploy.yml'
 
 jobs:
   build-and-deploy:
