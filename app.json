@@ -2,7 +2,7 @@
   "expo": {
     "name": "Auditera",
     "slug": "auditera-mobile",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "scheme": "auditera",
     "orientation": "portrait",
     "icon": "./assets/icon.png",

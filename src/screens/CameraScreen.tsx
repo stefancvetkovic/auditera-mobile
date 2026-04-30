@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -31,18 +31,31 @@ export function CameraScreen({ navigation }: Props) {
   const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
   const [capturing, setCapturing] = useState(false);
   const cameraRef = useRef<Camera>(null);
   const qrDetectedRef = useRef(false);
+  const isSubmittingRef = useRef(false);
+  const qrTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bannerAnim = useRef(new Animated.Value(-60)).current;
   const colors = useThemeStore((s) => s.colors);
   const styles = useMemo(() => createStyles(colors), [colors]);
+
+  useEffect(() => {
+    isSubmittingRef.current = isSubmitting;
+  }, [isSubmitting]);
 
   useFocusEffect(
     useCallback(() => {
       qrDetectedRef.current = false;
       setIsSubmitting(false);
-    }, []),
+      setIsFocused(true);
+      bannerAnim.setValue(-60);
+      return () => {
+        setIsFocused(false);
+        if (qrTimeoutRef.current) clearTimeout(qrTimeoutRef.current);
+      };
+    }, [bannerAnim]),
   );
 
   const showSuccessBanner = useCallback(() => {
@@ -57,12 +70,17 @@ export function CameraScreen({ navigation }: Props) {
     codeTypes: ['qr'],
     onCodeScanned: useCallback(
       (codes) => {
-        if (codes.length === 0 || qrDetectedRef.current || isSubmitting) return;
+        if (codes.length === 0 || qrDetectedRef.current || isSubmittingRef.current) return;
         const qrValue = codes[0].value;
         if (!qrValue) return;
 
         qrDetectedRef.current = true;
         Vibration.vibrate(100);
+
+        // Safety timeout: reset qrDetectedRef after 30s in case Alert.prompt fails
+        qrTimeoutRef.current = setTimeout(() => {
+          qrDetectedRef.current = false;
+        }, 30_000);
 
         Alert.prompt(
           'Fiskalni račun detektovan',
@@ -72,12 +90,14 @@ export function CameraScreen({ navigation }: Props) {
               text: 'Otkaži',
               style: 'cancel',
               onPress: () => {
+                if (qrTimeoutRef.current) clearTimeout(qrTimeoutRef.current);
                 qrDetectedRef.current = false;
               },
             },
             {
               text: 'Pošalji',
               onPress: async (description: string | undefined) => {
+                if (qrTimeoutRef.current) clearTimeout(qrTimeoutRef.current);
                 setIsSubmitting(true);
                 try {
                   await receiptsApi.submitFiscal(qrValue, description);
@@ -98,7 +118,7 @@ export function CameraScreen({ navigation }: Props) {
           '',
         );
       },
-      [isSubmitting, showSuccessBanner],
+      [showSuccessBanner],
     ),
   });
 
@@ -150,7 +170,7 @@ export function CameraScreen({ navigation }: Props) {
         ref={cameraRef}
         style={StyleSheet.absoluteFill}
         device={device}
-        isActive={true}
+        isActive={isFocused && !isSubmitting}
         photo={true}
         codeScanner={codeScanner}
       />
