@@ -8,10 +8,12 @@ import {
   ActivityIndicator,
   TouchableOpacity,
 } from 'react-native';
+import * as FileSystem from 'expo-file-system';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import { isAxiosError } from 'axios';
 import { receiptsApi } from '../api/client';
 import { cacheReceipts, getCachedReceipts, getPendingReceipts, removePendingReceipt } from '../stores/receiptsCache';
 import type { PendingReceipt } from '../stores/receiptsCache';
@@ -78,6 +80,14 @@ export function HistoryScreen() {
     const current = await getPendingReceipts();
     for (const p of current) {
       try {
+        // Check if the image file still exists (temp files get cleaned up between app launches)
+        const fileInfo = await FileSystem.getInfoAsync(p.imageUri);
+        if (!fileInfo.exists) {
+          // File is gone — remove from queue, can't recover
+          await removePendingReceipt(p.localId);
+          continue;
+        }
+
         const formData = new FormData();
         formData.append('image', {
           uri: p.imageUri,
@@ -88,8 +98,11 @@ export function HistoryScreen() {
         formData.append('submittedVia', '0');
         await receiptsApi.submit(formData);
         await removePendingReceipt(p.localId);
-      } catch {
-        break; // still offline, stop trying
+      } catch (e: unknown) {
+        // Only break if it's a network error (still offline)
+        if (isAxiosError(e) && !e.response) break;
+        // For other errors (4xx, 5xx), remove the receipt and continue
+        await removePendingReceipt(p.localId);
       }
     }
     const remaining = await getPendingReceipts();

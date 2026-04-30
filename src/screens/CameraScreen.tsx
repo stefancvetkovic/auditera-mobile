@@ -7,7 +7,6 @@ import {
   Alert,
   ActivityIndicator,
   Vibration,
-  Animated,
 } from 'react-native';
 import {
   Camera,
@@ -16,7 +15,7 @@ import {
   useCodeScanner,
 } from 'react-native-vision-camera';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useFocusEffect } from '@react-navigation/native';
+import { useIsFocused } from '@react-navigation/native';
 import { isAxiosError } from 'axios';
 import { receiptsApi } from '../api/client';
 import { useThemeStore } from '../stores/themeStore';
@@ -30,42 +29,47 @@ type Props = {
 export function CameraScreen({ navigation }: Props) {
   const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
+  const isFocused = useIsFocused();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isFocused, setIsFocused] = useState(false);
+  const [showBanner, setShowBanner] = useState(false);
   const [capturing, setCapturing] = useState(false);
   const cameraRef = useRef<Camera>(null);
   const qrDetectedRef = useRef(false);
   const isSubmittingRef = useRef(false);
-  const qrTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const bannerAnim = useRef(new Animated.Value(-60)).current;
+  const showBannerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const colors = useThemeStore((s) => s.colors);
   const styles = useMemo(() => createStyles(colors), [colors]);
 
+  // Sync ref with state so code scanner callback always has current value
   useEffect(() => {
     isSubmittingRef.current = isSubmitting;
   }, [isSubmitting]);
 
-  useFocusEffect(
-    useCallback(() => {
+  // Reset state when screen gains focus
+  useEffect(() => {
+    if (isFocused) {
       qrDetectedRef.current = false;
       setIsSubmitting(false);
-      setIsFocused(true);
-      bannerAnim.setValue(-60);
-      return () => {
-        setIsFocused(false);
-        if (qrTimeoutRef.current) clearTimeout(qrTimeoutRef.current);
-      };
-    }, [bannerAnim]),
-  );
+      setShowBanner(false);
+    }
+  }, [isFocused]);
 
   const showSuccessBanner = useCallback(() => {
-    Animated.sequence([
-      Animated.timing(bannerAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
-      Animated.delay(2000),
-      Animated.timing(bannerAnim, { toValue: -60, duration: 300, useNativeDriver: true }),
-    ]).start(() => navigation.navigate('Main'));
-  }, [bannerAnim, navigation]);
+    setShowBanner(true);
+    const timer = setTimeout(() => {
+      setShowBanner(false);
+      navigation.navigate('Main');
+    }, 2500);
+    return timer;
+  }, [navigation]);
 
+  // Stable ref for showSuccessBanner so codeScanner never changes identity
+  const showBannerFnRef = useRef(showSuccessBanner);
+  useEffect(() => {
+    showBannerFnRef.current = showSuccessBanner;
+  }, [showSuccessBanner]);
+
+  // Stable code scanner - never recreated, uses refs for all mutable state
   const codeScanner = useCodeScanner({
     codeTypes: ['qr'],
     onCodeScanned: useCallback(
@@ -77,11 +81,6 @@ export function CameraScreen({ navigation }: Props) {
         qrDetectedRef.current = true;
         Vibration.vibrate(100);
 
-        // Safety timeout: reset qrDetectedRef after 30s in case Alert.prompt fails
-        qrTimeoutRef.current = setTimeout(() => {
-          qrDetectedRef.current = false;
-        }, 30_000);
-
         Alert.prompt(
           'Fiskalni račun detektovan',
           'Unesite opis (opciono):',
@@ -90,18 +89,16 @@ export function CameraScreen({ navigation }: Props) {
               text: 'Otkaži',
               style: 'cancel',
               onPress: () => {
-                if (qrTimeoutRef.current) clearTimeout(qrTimeoutRef.current);
                 qrDetectedRef.current = false;
               },
             },
             {
               text: 'Pošalji',
               onPress: async (description: string | undefined) => {
-                if (qrTimeoutRef.current) clearTimeout(qrTimeoutRef.current);
                 setIsSubmitting(true);
                 try {
                   await receiptsApi.submitFiscal(qrValue, description);
-                  showSuccessBanner();
+                  showBannerFnRef.current();
                 } catch (e: unknown) {
                   const detail = isAxiosError(e)
                     ? `Status: ${e.response?.status}\n\n${JSON.stringify(e.response?.data, null, 2)}`
@@ -118,7 +115,7 @@ export function CameraScreen({ navigation }: Props) {
           '',
         );
       },
-      [showSuccessBanner],
+      [], // stable - all mutable values via refs
     ),
   });
 
@@ -158,13 +155,12 @@ export function CameraScreen({ navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      {/* Success banner */}
-      <Animated.View
-        style={[styles.successBanner, { transform: [{ translateY: bannerAnim }] }]}
-        pointerEvents="none"
-      >
-        <Text style={styles.successBannerText}>Račun uspješno poslan ✓</Text>
-      </Animated.View>
+      {/* Success banner - state-driven, no Animated */}
+      {showBanner && (
+        <View style={styles.successBanner}>
+          <Text style={styles.successBannerText}>Račun uspješno poslan ✓</Text>
+        </View>
+      )}
 
       <Camera
         ref={cameraRef}
