@@ -16,6 +16,7 @@ import {
 } from 'react-native-vision-camera';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useIsFocused } from '@react-navigation/native';
+import { useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import { receiptsApi } from '../api/client';
 import { useThemeStore } from '../stores/themeStore';
@@ -30,6 +31,7 @@ export function CameraScreen({ navigation }: Props) {
   const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
   const isFocused = useIsFocused();
+  const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showBanner, setShowBanner] = useState(false);
   const [capturing, setCapturing] = useState(false);
@@ -63,7 +65,8 @@ export function CameraScreen({ navigation }: Props) {
     return timer;
   }, [navigation]);
 
-  // Stable ref for showSuccessBanner so codeScanner never changes identity
+  // Stable refs so codeScanner callback never changes identity
+  const queryClientRef = useRef(queryClient);
   const showBannerFnRef = useRef(showSuccessBanner);
   useEffect(() => {
     showBannerFnRef.current = showSuccessBanner;
@@ -98,6 +101,7 @@ export function CameraScreen({ navigation }: Props) {
                 setIsSubmitting(true);
                 try {
                   await receiptsApi.submitFiscal(qrValue, description);
+                  void queryClientRef.current.invalidateQueries({ queryKey: ['myReceipts'] });
                   showBannerFnRef.current();
                 } catch (e: unknown) {
                   let detail: string;

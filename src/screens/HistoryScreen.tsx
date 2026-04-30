@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigation } from '@react-navigation/native';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { isAxiosError } from 'axios';
@@ -50,6 +50,7 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 export function HistoryScreen() {
   const navigation = useNavigation<Nav>();
   const queryClient = useQueryClient();
+  const isFocused = useIsFocused();
   const colors = useThemeStore((s) => s.colors);
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [cachedItems, setCachedItems] = useState<ReceiptItem[] | null>(null);
@@ -119,6 +120,14 @@ export function HistoryScreen() {
     });
     void getPendingReceipts().then(setPending);
   }, []);
+
+  // Refetch when tab gains focus (e.g. after submitting a receipt on Camera tab)
+  useEffect(() => {
+    if (isFocused) {
+      void refetch();
+      void getPendingReceipts().then(setPending);
+    }
+  }, [isFocused, refetch]);
 
   const isOffline = isError && !isLoading;
   const items = isOffline ? (cachedItems ?? []) : serverItems;
