@@ -44,3 +44,5 @@ yarn-error.*
 auditera-release.keystore
 android/key.properties
 credentials.md
+android-deploy/
+*.jks
