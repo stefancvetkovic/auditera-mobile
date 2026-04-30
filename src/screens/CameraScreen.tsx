@@ -100,9 +100,14 @@ export function CameraScreen({ navigation }: Props) {
                   await receiptsApi.submitFiscal(qrValue, description);
                   showBannerFnRef.current();
                 } catch (e: unknown) {
-                  const detail = isAxiosError(e)
-                    ? `Status: ${e.response?.status}\n\n${JSON.stringify(e.response?.data, null, 2)}`
-                    : String(e);
+                  let detail: string;
+                  if (isAxiosError(e)) {
+                    detail = e.response
+                      ? `Status: ${e.response.status}\n\n${JSON.stringify(e.response.data, null, 2)}`
+                      : `Network error: ${e.message}\n\nCode: ${e.code}`;
+                  } else {
+                    detail = e instanceof Error ? e.message : String(e);
+                  }
                   Alert.alert('Greška pri slanju', detail);
                   qrDetectedRef.current = false;
                 } finally {
