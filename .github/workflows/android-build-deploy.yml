@@ -87,8 +87,20 @@ jobs:
           path: android/app/build/outputs/bundle/release/*.aab
           retention-days: 90
 
+      - name: Check Google Play credentials
+        id: play_check
+        run: |
+          if [ -n "$PLAY_KEY" ]; then
+            echo "has_key=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_key=false" >> $GITHUB_OUTPUT
+            echo "⚠️ GOOGLE_PLAY_SERVICE_ACCOUNT_JSON not set — skipping Play Store upload"
+          fi
+        env:
+          PLAY_KEY: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+
       - name: Upload to Google Play
-        if: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON != '' }}
+        if: steps.play_check.outputs.has_key == 'true'
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
