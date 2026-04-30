@@ -50,35 +50,43 @@ jobs:
         run: |
           echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/auditera-upload.jks
 
-      - name: Build AAB
-        working-directory: android
+      - name: Configure signing
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          cat >> gradle.properties <<EOF
-          AUDITERA_UPLOAD_STORE_FILE=auditera-upload.jks
-          AUDITERA_UPLOAD_STORE_PASSWORD=$ANDROID_KEYSTORE_PASSWORD
-          AUDITERA_UPLOAD_KEY_ALIAS=$ANDROID_KEY_ALIAS
-          AUDITERA_UPLOAD_KEY_PASSWORD=$ANDROID_KEY_PASSWORD
-          EOF
+          node -e "
+            const fs = require('fs');
+            let gradle = fs.readFileSync('android/app/build.gradle', 'utf8');
 
-          # Patch app/build.gradle to use signing config
-          sed -i '/signingConfigs {/,/}/ {
-            /debug {/,/}/ a\
-            release {\
-                storeFile file(project.property("AUDITERA_UPLOAD_STORE_FILE"))\
-                storePassword project.property("AUDITERA_UPLOAD_STORE_PASSWORD")\
-                keyAlias project.property("AUDITERA_UPLOAD_KEY_ALIAS")\
-                keyPassword project.property("AUDITERA_UPLOAD_KEY_PASSWORD")\
-            }
-          }' app/build.gradle
+            // Add release signing config after signingConfigs {
+            const releaseConfig = \`
+        release {
+            storeFile file('auditera-upload.jks')
+            storePassword '${process.env.ANDROID_KEYSTORE_PASSWORD}'
+            keyAlias '${process.env.ANDROID_KEY_ALIAS}'
+            keyPassword '${process.env.ANDROID_KEY_PASSWORD}'
+        }\`;
 
-          # Point release buildType to release signing config
-          sed -i 's/signingConfig signingConfigs.debug/signingConfig signingConfigs.release/' app/build.gradle
+            gradle = gradle.replace(
+              /signingConfigs\s*\{/,
+              'signingConfigs {' + releaseConfig
+            );
 
-          ./gradlew bundleRelease --no-daemon
+            // Point release buildType to release signing config
+            gradle = gradle.replace(
+              /signingConfig signingConfigs\.debug/g,
+              'signingConfig signingConfigs.release'
+            );
+
+            fs.writeFileSync('android/app/build.gradle', gradle);
+            console.log('Signing config patched successfully');
+          "
+
+      - name: Build AAB
+        working-directory: android
+        run: ./gradlew bundleRelease --no-daemon
 
       - name: Upload AAB artifact
         uses: actions/upload-artifact@v4
