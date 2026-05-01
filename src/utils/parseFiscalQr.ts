@@ -10,11 +10,11 @@ export interface FiscalQrData {
 }
 
 const INVOICE_TYPES: Record<number, string> = {
-  0x00: 'Normal',
+  0x00: 'Normalan',
   0x01: 'Pro Forma',
-  0x02: 'Copy',
-  0x03: 'Training',
-  0x04: 'Advance',
+  0x02: 'Kopija',
+  0x03: 'Obuka',
+  0x04: 'Avans',
 };
 
 const TRANSACTION_TYPES: Record<number, string> = {

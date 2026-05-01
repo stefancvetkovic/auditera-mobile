@@ -112,12 +112,12 @@ export function AppNavigator() {
               <Stack.Screen
                 name="Preview"
                 component={PreviewScreen}
-                options={{ headerShown: true, title: 'Pregled racuna' }}
+                options={{ headerShown: true, title: 'Pregled računa' }}
               />
               <Stack.Screen
                 name="ReceiptDetail"
                 component={ReceiptDetailScreen}
-                options={{ headerShown: true, title: 'Racun' }}
+                options={{ headerShown: true, title: 'Račun' }}
               />
             </>
           )}
