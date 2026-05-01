@@ -33,6 +33,7 @@ interface ReceiptItem {
   suggestedCategoryId: string | null;
   suggestedCategoryName: string | null;
   aiConfidence: number | null;
+  fiscalQrUrl: string | null;
 }
 
 interface ReceiptsApiBody {
@@ -139,6 +140,7 @@ export function HistoryScreen() {
       description: item.description,
       period: item.period,
       isFiscal: item.isFiscal,
+      fiscalQrUrl: item.fiscalQrUrl ?? null,
     });
   }, [navigation]);
 

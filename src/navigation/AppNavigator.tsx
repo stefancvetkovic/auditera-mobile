@@ -26,6 +26,7 @@ export type RootStackParamList = {
     description: string | null;
     period: string;
     isFiscal: boolean;
+    fiscalQrUrl: string | null;
   };
 };
 

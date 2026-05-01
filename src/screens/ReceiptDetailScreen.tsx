@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,8 @@ import {
   TouchableOpacity,
   StyleSheet,
 } from 'react-native';
+import { WebView } from 'react-native-webview';
+import type { WebView as WebViewRef } from 'react-native-webview';
 import { useQuery } from '@tanstack/react-query';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,9 +23,11 @@ import type { RootStackParamList } from '../navigation/AppNavigator';
 type Props = NativeStackScreenProps<RootStackParamList, 'ReceiptDetail'>;
 
 export function ReceiptDetailScreen({ route }: Props) {
-  const { receiptId, fileName, description, period, isFiscal } = route.params;
+  const { receiptId, fileName, description, period, isFiscal, fiscalQrUrl } = route.params;
   const colors = useThemeStore((s) => s.colors);
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const webViewRef = useRef<WebViewRef>(null);
+  const [webViewLoading, setWebViewLoading] = useState(true);
 
   const { data: imageUri, isLoading, isError, error } = useQuery({
     queryKey: ['receiptImage', receiptId],
@@ -75,6 +79,51 @@ export function ReceiptDetailScreen({ route }: Props) {
       {imageUri && (
         <Image source={{ uri: imageUri }} style={styles.image} resizeMode="contain" />
       )}
+
+      {isFiscal && fiscalQrUrl ? (
+        <View style={styles.journalSection}>
+          {/* Info baner */}
+          <View style={styles.journalBanner}>
+            <Ionicons name="information-circle-outline" size={16} color="#92400e" />
+            <Text style={styles.journalBannerText}>
+              Žurnal se pojavljuje 15–20 minuta nakon plaćanja
+            </Text>
+          </View>
+
+          {/* Toolbar */}
+          <View style={styles.journalToolbar}>
+            <Text style={styles.journalTitle}>Fiskalni žurnal</Text>
+            <TouchableOpacity
+              onPress={() => webViewRef.current?.reload()}
+              style={styles.refreshBtn}
+              accessibilityLabel="Osveži žurnal"
+              accessibilityRole="button"
+            >
+              <Ionicons name="refresh" size={18} color={colors.brand} />
+              <Text style={styles.refreshBtnText}>Osveži</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* WebView */}
+          <View style={styles.webViewContainer}>
+            {webViewLoading && (
+              <View style={styles.webViewLoader}>
+                <ActivityIndicator size="large" color={colors.brand} />
+              </View>
+            )}
+            <WebView
+              ref={webViewRef}
+              source={{ uri: fiscalQrUrl }}
+              style={styles.webView}
+              onLoadStart={() => setWebViewLoading(true)}
+              onLoadEnd={() => setWebViewLoading(false)}
+              scrollEnabled
+              javaScriptEnabled
+              domStorageEnabled
+            />
+          </View>
+        </View>
+      ) : null}
 
       <View style={styles.card}>
         <Text style={styles.label}>Naziv fajla</Text>
@@ -132,6 +181,63 @@ function createStyles(colors: ColorScheme) {
       borderRadius: 10,
       marginBottom: 16,
       backgroundColor: colors.surface,
+    },
+    journalSection: {
+      marginBottom: 16,
+    },
+    journalBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: '#fef3c7',
+      borderRadius: 8,
+      padding: 10,
+      marginBottom: 8,
+    },
+    journalBannerText: {
+      flex: 1,
+      fontSize: 12,
+      color: '#92400e',
+      lineHeight: 16,
+    },
+    journalToolbar: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    journalTitle: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    refreshBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    refreshBtnText: {
+      fontSize: 13,
+      color: colors.brand,
+      fontWeight: '600',
+    },
+    webViewContainer: {
+      height: 480,
+      borderRadius: 10,
+      overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    webView: {
+      flex: 1,
+    },
+    webViewLoader: {
+      ...StyleSheet.absoluteFillObject,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      zIndex: 1,
     },
     card: {
       backgroundColor: colors.surface,

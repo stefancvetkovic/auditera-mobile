@@ -15,6 +15,7 @@ interface CachedReceiptItem {
   suggestedCategoryId: string | null;
   suggestedCategoryName: string | null;
   aiConfidence: number | null;
+  fiscalQrUrl: string | null;
 }
 
 interface CachedReceipts {
