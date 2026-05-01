@@ -13,6 +13,7 @@ import {
   Easing,
   KeyboardAvoidingView,
   Platform,
+  Linking,
 } from 'react-native';
 import {
   Camera,
@@ -147,7 +148,7 @@ export function CameraScreen({ navigation }: Props) {
           Vibration.vibrate(50);
           Alert.alert(
             'Nepoznat QR kod',
-            'Ovaj QR kod nije QR kod fiskalnog racuna.',
+            'Ovaj QR kod nije QR kod fiskalnog računa.',
             [{ text: 'U redu', onPress: () => { qrDetectedRef.current = false; } }],
           );
           return;
@@ -193,7 +194,7 @@ export function CameraScreen({ navigation }: Props) {
         } else {
           detail = e instanceof Error ? e.message : String(e);
         }
-        Alert.alert('Greska pri slanju', detail);
+        Alert.alert('Greška pri slanju', detail);
         qrDetectedRef.current = false;
       })
       .finally(() => {
@@ -211,7 +212,7 @@ export function CameraScreen({ navigation }: Props) {
         navigation.navigate('Preview', { imageUri: `file://${photo.path}` });
       }
     } catch {
-      Alert.alert('Greska', 'Nije moguce napraviti fotografiju.');
+      Alert.alert('Greška', 'Nije moguće napraviti fotografiju.');
     } finally {
       setCapturing(false);
     }
@@ -244,7 +245,7 @@ export function CameraScreen({ navigation }: Props) {
           <View style={styles.successCircle}>
             <Text style={styles.successCheck}>✓</Text>
           </View>
-          <Text style={styles.successText}>Racun uspjesno poslan</Text>
+          <Text style={styles.successText}>Račun uspešno poslat</Text>
         </View>
       )}
 
@@ -268,14 +269,14 @@ export function CameraScreen({ navigation }: Props) {
           <View style={[styles.reticleCorner, styles.reticleTopRight]} />
           <View style={[styles.reticleCorner, styles.reticleBottomLeft]} />
           <View style={[styles.reticleCorner, styles.reticleBottomRight]} />
-          <Text style={styles.reticleHint}>Usmjeri kameru na QR kod</Text>
+          <Text style={styles.reticleHint}>{'Skeniraj QR kod\nili slikaj račun'}</Text>
         </View>
 
         <TouchableOpacity
           style={[styles.shutter, (capturing || isSubmitting) && styles.shutterDisabled]}
           onPress={handleCapture}
           disabled={capturing || isSubmitting}
-          accessibilityLabel="Slikaj racun"
+          accessibilityLabel="Slikaj račun"
           accessibilityRole="button"
         >
           {capturing || isSubmitting ? (
@@ -293,7 +294,7 @@ export function CameraScreen({ navigation }: Props) {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Fiskalni racun</Text>
+            <Text style={styles.modalTitle}>Fiskalni račun</Text>
 
             {scannedData?.fiscal && (
               <View style={styles.modalInfo}>
@@ -323,13 +324,22 @@ export function CameraScreen({ navigation }: Props) {
               returnKeyType="done"
             />
 
+            {scannedData?.qrValue && (
+              <TouchableOpacity
+                style={styles.modalBtnJournal}
+                onPress={() => void Linking.openURL(scannedData.qrValue)}
+              >
+                <Text style={styles.modalBtnJournalText}>Pogledaj žurnal na PURS portalu</Text>
+              </TouchableOpacity>
+            )}
+
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 onPress={handleCancel}
                 style={styles.modalBtnCancel}
                 disabled={isSubmitting}
               >
-                <Text style={styles.modalBtnCancelText}>Otkazi</Text>
+                <Text style={styles.modalBtnCancelText}>Otkaži</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleSubmit}
@@ -339,7 +349,7 @@ export function CameraScreen({ navigation }: Props) {
                 {isSubmitting ? (
                   <ActivityIndicator color="#fff" size="small" />
                 ) : (
-                  <Text style={styles.modalBtnSubmitText}>Posalji</Text>
+                  <Text style={styles.modalBtnSubmitText}>Pošalji</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -350,8 +360,8 @@ export function CameraScreen({ navigation }: Props) {
   );
 }
 
-const RETICLE_SIZE = 280;
-const CORNER_LENGTH = 24;
+const RETICLE_SIZE = 200;
+const CORNER_LENGTH = 32;
 const CORNER_THICKNESS = 4;
 const CORNER_COLOR = '#fff';
 
@@ -446,6 +456,7 @@ function createStyles(colors: ColorScheme) {
       fontSize: 12,
       textAlign: 'center',
       paddingHorizontal: 8,
+      lineHeight: 18,
     },
     // Shutter
     shutter: {
@@ -519,6 +530,19 @@ function createStyles(colors: ColorScheme) {
       color: colors.text,
       backgroundColor: colors.background,
       marginBottom: 16,
+    },
+    modalBtnJournal: {
+      paddingVertical: 10,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.brand,
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    modalBtnJournalText: {
+      fontSize: 13,
+      color: colors.brand,
+      fontWeight: '600',
     },
     modalButtons: {
       flexDirection: 'row',
