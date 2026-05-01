@@ -140,7 +140,6 @@ export function HistoryScreen() {
       description: item.description,
       period: item.period,
       isFiscal: item.isFiscal,
-      fiscalQrUrl: item.fiscalQrUrl ?? null,
     });
   }, [navigation]);
 

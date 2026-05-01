@@ -33,6 +33,23 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL
     ? Platform.OS === 'android' ? 'http://10.0.2.2:7070' : 'http://localhost:7070'
     : 'https://api.auditera.ostrichtech.rs');
 
+export interface FiscalReceiptData {
+  journal: string | null;
+  sellerName: string | null;
+  sellerAddress: string | null;
+  totalAmount: number | null;
+  transactionDate: string | null;
+  transactionType: string | null;
+  invoiceNumber: string | null;
+}
+
+export interface ReceiptDetailsDto {
+  id: string;
+  fiscalData: string | null;
+  fiscalQrUrl: string | null;
+  isFiscal: boolean;
+}
+
 export const api = axios.create({ baseURL: API_URL, timeout: 30000 });
 
 api.interceptors.request.use((config) => {
@@ -97,6 +114,10 @@ export const receiptsApi = {
     api.get<ArrayBuffer>(`/api/v1/receipts/${receiptId}/image`, {
       responseType: 'arraybuffer',
     }),
+  getReceiptDetails: (receiptId: string) =>
+    api.get<ApiEnvelope<ReceiptDetailsDto>>(`/api/v1/receipts/${receiptId}`),
+  refetchFiscalData: (receiptId: string) =>
+    api.post(`/api/v1/receipts/${receiptId}/refetch-fiscal`),
   getCategories: () =>
     api.get('/api/v1/codelists/receipt-categories', { params: { onlyActive: true } }),
   updateCategory: (receiptId: string, categoryId: string) =>

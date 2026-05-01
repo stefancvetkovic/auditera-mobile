@@ -15,12 +15,8 @@ import {
   Platform,
   Linking,
 } from 'react-native';
-import {
-  Camera,
-  useCameraDevice,
-  useCameraPermission,
-  useCodeScanner,
-} from 'react-native-vision-camera';
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import type { BarcodeScanningResult } from 'expo-camera';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useIsFocused } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
@@ -85,8 +81,7 @@ function ScanLine({ size }: { size: number }) {
 }
 
 export function CameraScreen({ navigation }: Props) {
-  const { hasPermission, requestPermission } = useCameraPermission();
-  const device = useCameraDevice('back');
+  const [permission, requestPermission] = useCameraPermissions();
   const isFocused = useIsFocused();
   const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -97,7 +92,7 @@ export function CameraScreen({ navigation }: Props) {
     fiscal: FiscalQrData | null;
   } | null>(null);
   const [description, setDescription] = useState('');
-  const cameraRef = useRef<Camera>(null);
+  const cameraRef = useRef<CameraView>(null);
   const qrDetectedRef = useRef(false);
   const isSubmittingRef = useRef(false);
   const colors = useThemeStore((s) => s.colors);
@@ -127,42 +122,32 @@ export function CameraScreen({ navigation }: Props) {
     return timer;
   }, [navigation]);
 
-  // Stable refs so codeScanner callback never changes identity
   const queryClientRef = useRef(queryClient);
   const showBannerFnRef = useRef(showSuccessBanner);
   useEffect(() => {
     showBannerFnRef.current = showSuccessBanner;
   }, [showSuccessBanner]);
 
-  const codeScanner = useCodeScanner({
-    codeTypes: ['qr'],
-    onCodeScanned: useCallback(
-      (codes) => {
-        if (codes.length === 0 || qrDetectedRef.current || isSubmittingRef.current) return;
-        const qrValue = codes[0].value;
-        if (!qrValue) return;
+  const handleBarcodeScanned = useCallback(({ data }: BarcodeScanningResult) => {
+    if (qrDetectedRef.current || isSubmittingRef.current) return;
+    if (!data) return;
 
-        // Validacija: samo PURS fiskalni QR kodovi
-        if (!qrValue.includes('suf.purs.gov.rs')) {
-          qrDetectedRef.current = true;
-          Vibration.vibrate(50);
-          Alert.alert(
-            'Nepoznat QR kod',
-            'Ovaj QR kod nije QR kod fiskalnog računa.',
-            [{ text: 'U redu', onPress: () => { qrDetectedRef.current = false; } }],
-          );
-          return;
-        }
+    if (!data.includes('suf.purs.gov.rs')) {
+      qrDetectedRef.current = true;
+      Vibration.vibrate(50);
+      Alert.alert(
+        'Nepoznat QR kod',
+        'Ovaj QR kod nije QR kod fiskalnog računa.',
+        [{ text: 'U redu', onPress: () => { qrDetectedRef.current = false; } }],
+      );
+      return;
+    }
 
-        qrDetectedRef.current = true;
-        Vibration.vibrate(100);
-
-        const fiscal = parseFiscalQr(qrValue);
-        setScannedData({ qrValue, fiscal });
-      },
-      [],
-    ),
-  });
+    qrDetectedRef.current = true;
+    Vibration.vibrate(100);
+    const fiscal = parseFiscalQr(data);
+    setScannedData({ qrValue: data, fiscal });
+  }, []);
 
   const handleCancel = useCallback(() => {
     setScannedData(null);
@@ -207,9 +192,9 @@ export function CameraScreen({ navigation }: Props) {
     if (!cameraRef.current || capturing) return;
     setCapturing(true);
     try {
-      const photo = await cameraRef.current.takePhoto();
+      const photo = await cameraRef.current.takePictureAsync({ quality: 0.85 });
       if (photo) {
-        navigation.navigate('Preview', { imageUri: `file://${photo.path}` });
+        navigation.navigate('Preview', { imageUri: photo.uri });
       }
     } catch {
       Alert.alert('Greška', 'Nije moguće napraviti fotografiju.');
@@ -218,21 +203,13 @@ export function CameraScreen({ navigation }: Props) {
     }
   };
 
-  if (!hasPermission) {
+  if (!permission?.granted) {
     return (
       <View style={styles.center}>
         <Text style={styles.permText}>Potrebna je dozvola za kameru.</Text>
         <TouchableOpacity style={styles.btn} onPress={requestPermission}>
           <Text style={styles.btnText}>Daj dozvolu</Text>
         </TouchableOpacity>
-      </View>
-    );
-  }
-
-  if (!device) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={colors.brand} />
       </View>
     );
   }
@@ -249,16 +226,13 @@ export function CameraScreen({ navigation }: Props) {
         </View>
       )}
 
-      <Camera
+      <CameraView
         ref={cameraRef}
         style={StyleSheet.absoluteFill}
-        device={device}
-        isActive={isFocused && !showBanner}
-        photo={true}
-        codeScanner={codeScanner}
-        fps={30}
-        pixelFormat="yuv"
-        videoStabilizationMode="off"
+        facing="back"
+        active={isFocused && !showBanner}
+        barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+        onBarcodeScanned={showBanner ? undefined : handleBarcodeScanned}
       />
 
       <View style={styles.overlay}>
@@ -383,7 +357,6 @@ function createStyles(colors: ColorScheme) {
       paddingTop: 80,
       paddingBottom: 48,
     },
-    // Success overlay
     successOverlay: {
       ...StyleSheet.absoluteFillObject,
       zIndex: 100,
@@ -410,7 +383,6 @@ function createStyles(colors: ColorScheme) {
       fontSize: 18,
       fontWeight: '600',
     },
-    // Reticle
     reticleContainer: {
       width: RETICLE_SIZE,
       height: RETICLE_SIZE,
@@ -458,7 +430,6 @@ function createStyles(colors: ColorScheme) {
       paddingHorizontal: 8,
       lineHeight: 18,
     },
-    // Shutter
     shutter: {
       width: 72,
       height: 72,
@@ -478,7 +449,6 @@ function createStyles(colors: ColorScheme) {
     },
     btn: { backgroundColor: colors.brand, padding: 14, borderRadius: 8 },
     btnText: { color: colors.brandText, fontSize: 15 },
-    // Modal
     modalBackdrop: {
       flex: 1,
       justifyContent: 'center',

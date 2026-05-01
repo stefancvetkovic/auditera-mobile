@@ -7,14 +7,14 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   StyleSheet,
+  Platform,
 } from 'react-native';
-import { WebView } from 'react-native-webview';
-import type { WebView as WebViewRef } from 'react-native-webview';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import { receiptsApi, arrayBufferToBase64 } from '../api/client';
+import type { FiscalReceiptData } from '../api/client';
 import { cacheReceiptImage, getCachedReceiptImage } from '../stores/receiptsCache';
 import { useThemeStore } from '../stores/themeStore';
 import type { ColorScheme } from '../theme/colors';
@@ -23,16 +23,14 @@ import type { RootStackParamList } from '../navigation/AppNavigator';
 type Props = NativeStackScreenProps<RootStackParamList, 'ReceiptDetail'>;
 
 export function ReceiptDetailScreen({ route }: Props) {
-  const { receiptId, fileName, description, period, isFiscal, fiscalQrUrl } = route.params;
+  const { receiptId, fileName, description, period, isFiscal } = route.params;
   const colors = useThemeStore((s) => s.colors);
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const webViewRef = useRef<WebViewRef>(null);
-  const [webViewLoading, setWebViewLoading] = useState(true);
 
+  // Image query — only for non-fiscal receipts
   const { data: imageUri, isLoading, isError, error } = useQuery({
     queryKey: ['receiptImage', receiptId],
     queryFn: async () => {
-      // Try cached image first
       const cached = await getCachedReceiptImage(receiptId);
 
       try {
@@ -42,7 +40,6 @@ export function ReceiptDetailScreen({ route }: Props) {
         void cacheReceiptImage(receiptId, uri);
         return uri;
       } catch (e: unknown) {
-        // API failed — return cache if available
         if (cached) return cached;
         let msg = 'Unknown error';
         if (axios.isAxiosError(e)) {
@@ -56,18 +53,44 @@ export function ReceiptDetailScreen({ route }: Props) {
     },
     staleTime: 10 * 60 * 1000,
     retry: 1,
+    enabled: !isFiscal,
+  });
+
+  // Details query — only for fiscal receipts (fetches journal text)
+  const { data: details, refetch: refetchDetails } = useQuery({
+    queryKey: ['receiptDetails', receiptId],
+    queryFn: () => receiptsApi.getReceiptDetails(receiptId).then((r) => r.data.data),
+    enabled: isFiscal,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const journal = useMemo(() => {
+    if (!details?.fiscalData) return null;
+    try {
+      const fd = JSON.parse(details.fiscalData) as FiscalReceiptData;
+      return fd.journal ?? null;
+    } catch {
+      return null;
+    }
+  }, [details?.fiscalData]);
+
+  // Refetch fiscal data from PURS
+  const { mutate: triggerRefetch, isPending: isRefetching } = useMutation({
+    mutationFn: () => receiptsApi.refetchFiscalData(receiptId),
+    onSuccess: () => void refetchDetails(),
   });
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {isLoading && (
+      {/* Image loading/error — only for non-fiscal */}
+      {!isFiscal && isLoading && (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={colors.brand} />
           <Text style={styles.loadingText}>Učitavanje slike...</Text>
         </View>
       )}
 
-      {isError && (
+      {!isFiscal && isError && (
         <View style={styles.center}>
           <Ionicons name="cloud-offline-outline" size={40} color={colors.textMuted} />
           <Text style={styles.errorText}>
@@ -80,9 +103,9 @@ export function ReceiptDetailScreen({ route }: Props) {
         <Image source={{ uri: imageUri }} style={styles.image} resizeMode="contain" />
       )}
 
-      {isFiscal && fiscalQrUrl ? (
+      {/* Fiscal journal section */}
+      {isFiscal && (
         <View style={styles.journalSection}>
-          {/* Info baner */}
           <View style={styles.journalBanner}>
             <Ionicons name="information-circle-outline" size={16} color="#92400e" />
             <Text style={styles.journalBannerText}>
@@ -90,40 +113,43 @@ export function ReceiptDetailScreen({ route }: Props) {
             </Text>
           </View>
 
-          {/* Toolbar */}
           <View style={styles.journalToolbar}>
             <Text style={styles.journalTitle}>Fiskalni žurnal</Text>
             <TouchableOpacity
-              onPress={() => webViewRef.current?.reload()}
+              onPress={() => triggerRefetch()}
               style={styles.refreshBtn}
+              disabled={isRefetching}
               accessibilityLabel="Osveži žurnal"
               accessibilityRole="button"
             >
-              <Ionicons name="refresh" size={18} color={colors.brand} />
+              {isRefetching ? (
+                <ActivityIndicator size="small" color={colors.brand} />
+              ) : (
+                <Ionicons name="refresh" size={18} color={colors.brand} />
+              )}
               <Text style={styles.refreshBtnText}>Osveži</Text>
             </TouchableOpacity>
           </View>
 
-          {/* WebView */}
-          <View style={styles.webViewContainer}>
-            {webViewLoading && (
-              <View style={styles.webViewLoader}>
-                <ActivityIndicator size="large" color={colors.brand} />
-              </View>
-            )}
-            <WebView
-              ref={webViewRef}
-              source={{ uri: fiscalQrUrl }}
-              style={styles.webView}
-              onLoadStart={() => setWebViewLoading(true)}
-              onLoadEnd={() => setWebViewLoading(false)}
-              scrollEnabled
-              javaScriptEnabled
-              domStorageEnabled
-            />
-          </View>
+          {journal ? (
+            <ScrollView
+              horizontal
+              style={styles.journalScroll}
+              contentContainerStyle={styles.journalScrollContent}
+              showsHorizontalScrollIndicator={false}
+            >
+              <Text style={styles.journalText}>{journal}</Text>
+            </ScrollView>
+          ) : (
+            <View style={styles.journalEmpty}>
+              <Ionicons name="document-text-outline" size={32} color={colors.textMuted} />
+              <Text style={styles.journalEmptyText}>
+                Žurnal još nije dostupan.{'\n'}Pritisnite "Osveži" da pokušate ponovo.
+              </Text>
+            </View>
+          )}
         </View>
-      ) : null}
+      )}
 
       <View style={styles.card}>
         <Text style={styles.label}>Naziv fajla</Text>
@@ -221,23 +247,36 @@ function createStyles(colors: ColorScheme) {
       color: colors.brand,
       fontWeight: '600',
     },
-    webViewContainer: {
-      height: 480,
-      borderRadius: 10,
-      overflow: 'hidden',
+    journalScroll: {
+      backgroundColor: colors.surface,
+      borderRadius: 8,
       borderWidth: 1,
       borderColor: colors.border,
-      backgroundColor: colors.surface,
+      maxHeight: 400,
     },
-    webView: {
-      flex: 1,
+    journalScrollContent: {
+      padding: 12,
     },
-    webViewLoader: {
-      ...StyleSheet.absoluteFillObject,
-      justifyContent: 'center',
+    journalText: {
+      fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
+      fontSize: 11,
+      lineHeight: 16,
+      color: colors.text,
+    },
+    journalEmpty: {
       alignItems: 'center',
+      paddingVertical: 32,
       backgroundColor: colors.surface,
-      zIndex: 1,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      gap: 8,
+    },
+    journalEmptyText: {
+      fontSize: 13,
+      color: colors.textMuted,
+      textAlign: 'center',
+      lineHeight: 20,
     },
     card: {
       backgroundColor: colors.surface,

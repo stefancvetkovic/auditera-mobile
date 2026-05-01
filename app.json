@@ -25,16 +25,13 @@
       }
     },
     "plugins": [
-      "expo-secure-store",
-      "react-native-webview",
       [
-        "react-native-vision-camera",
+        "expo-camera",
         {
-          "cameraPermissionText": "Dozvolite pristup kameri za slikanje računa.",
-          "enableMicrophonePermission": false,
-          "enableLocation": false
+          "cameraPermission": "Dozvolite pristup kameri za slikanje računa."
         }
       ],
+      "expo-secure-store",
       [
         "expo-local-authentication",
         {
