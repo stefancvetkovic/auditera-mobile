@@ -30,7 +30,8 @@
         "react-native-vision-camera",
         {
           "cameraPermissionText": "Dozvolite pristup kameri za slikanje računa.",
-          "enableMicrophonePermission": false
+          "enableMicrophonePermission": false,
+          "enableLocation": false
         }
       ],
       [
