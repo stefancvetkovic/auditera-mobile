@@ -67,8 +67,10 @@ export function ReceiptDetailScreen({ route }: Props) {
   const journal = useMemo(() => {
     if (!details?.fiscalData) return null;
     try {
-      const fd = JSON.parse(details.fiscalData) as FiscalReceiptData;
-      return fd.journal ?? null;
+      const fd = JSON.parse(details.fiscalData) as Record<string, unknown>;
+      // Podrži stare zapise (PascalCase) i nove (camelCase)
+      const value = fd['journal'] ?? fd['Journal'];
+      return typeof value === 'string' ? value : null;
     } catch {
       return null;
     }
