@@ -123,10 +123,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
-    await SecureStore.deleteItemAsync('auth_token');
-    await SecureStore.deleteItemAsync('auth_user');
-    await SecureStore.setItemAsync(BIOMETRIC_ENABLED_KEY, 'false');
-    set({ token: null, user: null, isAuthenticated: false, biometricEnabled: false });
+    // Lock the app — preserves token and Face ID preference so biometric re-auth works on next open.
+    // Full session clear only happens via sessionExpired() (401) or app uninstall.
+    set({ isAuthenticated: false });
   },
 
   // Token odbijen od servera (401) — briše sesiju ali čuva biometric preference

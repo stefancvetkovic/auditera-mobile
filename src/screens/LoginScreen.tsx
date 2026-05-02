@@ -118,8 +118,6 @@ export function LoginScreen() {
             </>
           )}
 
-          <Text style={styles.debugBanner}>TEST TEST TEST</Text>
-
           <TextInput
             style={styles.input}
             placeholder="Email"
@@ -221,13 +219,6 @@ function createStyles(colors: ColorScheme) {
     },
     dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
     dividerText: { marginHorizontal: 12, color: colors.textMuted, fontSize: 13 },
-    debugBanner: {
-      color: '#ff0000',
-      fontWeight: '700',
-      fontSize: 18,
-      textAlign: 'center',
-      marginBottom: 12,
-    },
     infoBoxOuter: {
       position: 'absolute',
       left: 16,

@@ -87,6 +87,7 @@ export function CameraScreen({ navigation }: Props) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showBanner, setShowBanner] = useState(false);
   const [capturing, setCapturing] = useState(false);
+  const [torchEnabled, setTorchEnabled] = useState(false);
   const [scannedData, setScannedData] = useState<{
     qrValue: string;
     fiscal: FiscalQrData | null;
@@ -231,34 +232,51 @@ export function CameraScreen({ navigation }: Props) {
         style={StyleSheet.absoluteFill}
         facing="back"
         active={isFocused && !showBanner}
+        enableTorch={torchEnabled}
         barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
         onBarcodeScanned={showBanner ? undefined : handleBarcodeScanned}
       />
 
       <View style={styles.overlay}>
         {/* QR scan guide reticle */}
-        <View style={styles.reticleContainer}>
-          <ScanLine size={RETICLE_SIZE} />
-          <View style={[styles.reticleCorner, styles.reticleTopLeft]} />
-          <View style={[styles.reticleCorner, styles.reticleTopRight]} />
-          <View style={[styles.reticleCorner, styles.reticleBottomLeft]} />
-          <View style={[styles.reticleCorner, styles.reticleBottomRight]} />
-          <Text style={styles.reticleHint}>{'Skeniraj QR kod\nili slikaj račun'}</Text>
+        <View style={styles.reticleWrapper}>
+          <Text style={styles.reticleHint}>Postavi QR kod unutar okvira</Text>
+          <View style={styles.reticleContainer}>
+            <ScanLine size={RETICLE_SIZE} />
+            <View style={[styles.reticleCorner, styles.reticleTopLeft]} />
+            <View style={[styles.reticleCorner, styles.reticleTopRight]} />
+            <View style={[styles.reticleCorner, styles.reticleBottomLeft]} />
+            <View style={[styles.reticleCorner, styles.reticleBottomRight]} />
+          </View>
+          <Text style={styles.reticleSubHint}>ili pritisni dugme ispod za fotografiju</Text>
         </View>
 
-        <TouchableOpacity
-          style={[styles.shutter, (capturing || isSubmitting) && styles.shutterDisabled]}
-          onPress={handleCapture}
-          disabled={capturing || isSubmitting}
-          accessibilityLabel="Slikaj račun"
-          accessibilityRole="button"
-        >
-          {capturing || isSubmitting ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <View style={styles.shutterInner} />
-          )}
-        </TouchableOpacity>
+        <View style={styles.bottomBar}>
+          <TouchableOpacity
+            style={styles.torchBtn}
+            onPress={() => setTorchEnabled((prev) => !prev)}
+            accessibilityLabel={torchEnabled ? 'Isključi baterijsku lampu' : 'Uključi baterijsku lampu'}
+            accessibilityRole="button"
+          >
+            <Text style={styles.torchIcon}>{torchEnabled ? '🔦' : '💡'}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.shutter, (capturing || isSubmitting) && styles.shutterDisabled]}
+            onPress={handleCapture}
+            disabled={capturing || isSubmitting}
+            accessibilityLabel="Slikaj račun"
+            accessibilityRole="button"
+          >
+            {capturing || isSubmitting ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <View style={styles.shutterInner} />
+            )}
+          </TouchableOpacity>
+
+          <View style={styles.torchPlaceholder} />
+        </View>
       </View>
 
       {/* Fiscal QR modal */}
@@ -334,7 +352,7 @@ export function CameraScreen({ navigation }: Props) {
   );
 }
 
-const RETICLE_SIZE = 200;
+const RETICLE_SIZE = 280;
 const CORNER_LENGTH = 32;
 const CORNER_THICKNESS = 4;
 const CORNER_COLOR = '#fff';
@@ -356,6 +374,35 @@ function createStyles(colors: ColorScheme) {
       alignItems: 'center',
       paddingTop: 80,
       paddingBottom: 48,
+    },
+    reticleWrapper: {
+      alignItems: 'center',
+      gap: 12,
+    },
+    bottomBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 32,
+    },
+    torchBtn: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: 'rgba(255,255,255,0.2)',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    torchIcon: {
+      fontSize: 22,
+    },
+    torchPlaceholder: {
+      width: 48,
+    },
+    reticleSubHint: {
+      color: 'rgba(255,255,255,0.5)',
+      fontSize: 11,
+      textAlign: 'center',
     },
     successOverlay: {
       ...StyleSheet.absoluteFillObject,
@@ -424,11 +471,10 @@ function createStyles(colors: ColorScheme) {
       borderBottomRightRadius: 4,
     },
     reticleHint: {
-      color: 'rgba(255,255,255,0.7)',
-      fontSize: 12,
+      color: 'rgba(255,255,255,0.85)',
+      fontSize: 13,
       textAlign: 'center',
-      paddingHorizontal: 8,
-      lineHeight: 18,
+      fontWeight: '500',
     },
     shutter: {
       width: 72,
