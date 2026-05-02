@@ -193,7 +193,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const result = await LocalAuthentication.authenticateAsync({
       promptMessage: 'Potvrdite identitet za pristup aplikaciji',
       cancelLabel: 'Otkaži',
-      disableDeviceFallback: true,
+      disableDeviceFallback: false,
     });
 
     if (result.success) {

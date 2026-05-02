@@ -117,7 +117,7 @@ export function AppNavigator() {
               <Stack.Screen
                 name="ReceiptDetail"
                 component={ReceiptDetailScreen}
-                options={{ headerShown: true, title: 'Račun' }}
+                options={{ headerShown: true, title: 'Račun', gestureEnabled: true }}
               />
             </>
           )}

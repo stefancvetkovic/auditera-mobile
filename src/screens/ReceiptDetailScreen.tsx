@@ -83,7 +83,8 @@ export function ReceiptDetailScreen({ route }: Props) {
   });
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <View style={styles.container}>
+    <ScrollView contentContainerStyle={styles.content}>
       {/* Image loading/error — only for non-fiscal */}
       {!isFiscal && isLoading && (
         <View style={styles.center}>
@@ -175,6 +176,7 @@ export function ReceiptDetailScreen({ route }: Props) {
         </View>
       </View>
     </ScrollView>
+    </View>
   );
 }
 
