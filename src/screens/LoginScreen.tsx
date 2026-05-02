@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { authApi, getApiErrorMessage } from '../api/client';
 import { useAuthStore } from '../stores/authStore';
@@ -78,6 +79,7 @@ export function LoginScreen() {
   };
 
   return (
+    <SafeAreaView style={styles.safeArea} edges={['bottom']}>
     <KeyboardAvoidingView
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -167,13 +169,15 @@ export function LoginScreen() {
         </View>
       </View>
     </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 function createStyles(colors: ColorScheme) {
   return StyleSheet.create({
-    flex: { flex: 1, backgroundColor: colors.background },
-    container: { flex: 1, justifyContent: 'center', padding: 24 },
+    safeArea: { flex: 1, backgroundColor: colors.background },
+    flex: { flex: 1 },
+    container: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: colors.background },
     title: { fontSize: 32, fontWeight: '700', color: colors.text, textAlign: 'center', marginBottom: 4 },
     subtitle: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 32 },
     biometricBtn: {

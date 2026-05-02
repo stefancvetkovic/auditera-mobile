@@ -33,6 +33,7 @@ interface AuthState {
   showBiometricPrompt: boolean;
   setAuth: (token: string, user: AuthUser) => Promise<void>;
   logout: () => Promise<void>;
+  sessionExpired: () => Promise<void>;
   bootstrap: () => Promise<void>;
   setBiometricEnabled: (enabled: boolean) => Promise<void>;
   dismissBiometricPrompt: () => void;
@@ -126,6 +127,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await SecureStore.deleteItemAsync('auth_user');
     await SecureStore.setItemAsync(BIOMETRIC_ENABLED_KEY, 'false');
     set({ token: null, user: null, isAuthenticated: false, biometricEnabled: false });
+  },
+
+  // Token odbijen od servera (401) — briše sesiju ali čuva biometric preference
+  sessionExpired: async () => {
+    await SecureStore.deleteItemAsync('auth_token');
+    await SecureStore.deleteItemAsync('auth_user');
+    set({ token: null, user: null, isAuthenticated: false });
   },
 
   bootstrap: async () => {

@@ -69,7 +69,7 @@ api.interceptors.response.use(
     if (axios.isAxiosError(error)) {
       const status = error.response?.status;
       if (status === 401) {
-        useAuthStore.getState().logout();
+        void useAuthStore.getState().sessionExpired();
       }
     }
     return Promise.reject(error);
