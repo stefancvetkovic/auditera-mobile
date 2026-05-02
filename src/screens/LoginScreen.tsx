@@ -9,7 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { authApi, getApiErrorMessage } from '../api/client';
 import { useAuthStore } from '../stores/authStore';
@@ -31,6 +31,7 @@ export function LoginScreen() {
   const token = useAuthStore((s) => s.token);
 
   const colors = useThemeStore((s) => s.colors);
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const hasSavedSession = biometricEnabled && token !== null;
@@ -79,12 +80,11 @@ export function LoginScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['bottom']}>
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <View style={styles.flex}>
+    <View style={styles.safeArea}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
         <View style={styles.container}>
           <Text style={styles.title}>Auditera</Text>
           <Text style={styles.subtitle}>Dostava računa</Text>
@@ -155,21 +155,20 @@ export function LoginScreen() {
             )}
           </TouchableOpacity>
         </View>
+      </KeyboardAvoidingView>
 
-        <View style={styles.infoBoxOuter}>
-          <View style={styles.infoBox}>
-            <Ionicons name="information-circle-outline" size={16} color={colors.textMuted} />
-            <Text style={styles.infoText}>
-              Za pristup je potreban nalog na{' '}
-              <Text style={styles.infoLink}>demo.auditera.ostrichtech.rs</Text>
-              {'. '}
-              Ukoliko ga nemate, kontaktirajte administratora.
-            </Text>
-          </View>
+      <View style={[styles.infoBoxOuter, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+        <View style={styles.infoBox}>
+          <Ionicons name="information-circle-outline" size={16} color={colors.textMuted} />
+          <Text style={styles.infoText}>
+            Za pristup je potreban nalog na{' '}
+            <Text style={styles.infoLink}>demo.auditera.ostrichtech.rs</Text>
+            {'. '}
+            Ukoliko ga nemate, kontaktirajte administratora.
+          </Text>
         </View>
       </View>
-    </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -177,7 +176,7 @@ function createStyles(colors: ColorScheme) {
   return StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: colors.background },
     flex: { flex: 1 },
-    container: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: colors.background },
+    container: { flex: 1, justifyContent: 'center', padding: 24 },
     title: { fontSize: 32, fontWeight: '700', color: colors.text, textAlign: 'center', marginBottom: 4 },
     subtitle: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 32 },
     biometricBtn: {
@@ -221,8 +220,8 @@ function createStyles(colors: ColorScheme) {
     dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
     dividerText: { marginHorizontal: 12, color: colors.textMuted, fontSize: 13 },
     infoBoxOuter: {
-      paddingHorizontal: 24,
-      paddingBottom: 24,
+      paddingHorizontal: 16,
+      paddingTop: 8,
     },
     infoBox: {
       flexDirection: 'row',
