@@ -157,7 +157,7 @@ export function LoginScreen() {
         </View>
       </KeyboardAvoidingView>
 
-      <View style={[styles.infoBoxOuter, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+      <View style={[styles.infoBoxOuter, { bottom: insets.bottom + 8 }]}>
         <View style={styles.infoBox}>
           <Ionicons name="information-circle-outline" size={16} color={colors.textMuted} />
           <Text style={styles.infoText}>
@@ -176,7 +176,7 @@ function createStyles(colors: ColorScheme) {
   return StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: colors.background },
     flex: { flex: 1 },
-    container: { flex: 1, justifyContent: 'center', padding: 24 },
+    container: { flex: 1, justifyContent: 'center', padding: 24, paddingBottom: 120 },
     title: { fontSize: 32, fontWeight: '700', color: colors.text, textAlign: 'center', marginBottom: 4 },
     subtitle: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 32 },
     biometricBtn: {
@@ -220,8 +220,9 @@ function createStyles(colors: ColorScheme) {
     dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
     dividerText: { marginHorizontal: 12, color: colors.textMuted, fontSize: 13 },
     infoBoxOuter: {
-      paddingHorizontal: 16,
-      paddingTop: 8,
+      position: 'absolute',
+      left: 16,
+      right: 16,
     },
     infoBox: {
       flexDirection: 'row',
