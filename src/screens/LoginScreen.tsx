@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { authApi, getApiErrorMessage } from '../api/client';
 import { useAuthStore } from '../stores/authStore';
 import { useThemeStore } from '../stores/themeStore';
@@ -150,6 +151,16 @@ export function LoginScreen() {
             <Text style={styles.primaryBtnText}>Prijavi se</Text>
           )}
         </TouchableOpacity>
+
+        <View style={styles.infoBox}>
+          <Ionicons name="information-circle-outline" size={16} color={colors.textMuted} />
+          <Text style={styles.infoText}>
+            Za pristup je potreban nalog na{' '}
+            <Text style={styles.infoLink}>demo.auditera.ostrichtech.rs</Text>
+            {'. '}
+            Ukoliko ga nemate, kontaktirajte administratora.
+          </Text>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -201,5 +212,26 @@ function createStyles(colors: ColorScheme) {
     },
     dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
     dividerText: { marginHorizontal: 12, color: colors.textMuted, fontSize: 13 },
+    infoBox: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 8,
+      marginTop: 24,
+      backgroundColor: colors.surface,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 12,
+    },
+    infoText: {
+      flex: 1,
+      fontSize: 12,
+      color: colors.textMuted,
+      lineHeight: 18,
+    },
+    infoLink: {
+      color: colors.brand,
+      fontWeight: '500',
+    },
   });
 }
