@@ -82,84 +82,88 @@ export function LoginScreen() {
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <View style={styles.container}>
-        <Text style={styles.title}>Auditera</Text>
-        <Text style={styles.subtitle}>Dostava računa</Text>
+      <View style={styles.flex}>
+        <View style={styles.container}>
+          <Text style={styles.title}>Auditera</Text>
+          <Text style={styles.subtitle}>Dostava računa</Text>
 
-        {hasSavedSession && (
-          <>
-            <TouchableOpacity
-              style={styles.biometricBtn}
-              onPress={handleBiometricLogin}
-              disabled={biometricLoading}
-              accessibilityLabel={biometricInfo.label}
-              accessibilityRole="button"
-            >
-              {biometricLoading ? (
-                <ActivityIndicator color={colors.brand} />
-              ) : (
-                <>
-                  <Text style={styles.biometricIcon}>
-                    {biometricInfo.biometryType === 'face-id' ? '👤' : '🔒'}
-                  </Text>
-                  <Text style={styles.biometricBtnText}>{biometricInfo.label}</Text>
-                </>
-              )}
-            </TouchableOpacity>
+          {hasSavedSession && (
+            <>
+              <TouchableOpacity
+                style={styles.biometricBtn}
+                onPress={handleBiometricLogin}
+                disabled={biometricLoading}
+                accessibilityLabel={biometricInfo.label}
+                accessibilityRole="button"
+              >
+                {biometricLoading ? (
+                  <ActivityIndicator color={colors.brand} />
+                ) : (
+                  <>
+                    <Text style={styles.biometricIcon}>
+                      {biometricInfo.biometryType === 'face-id' ? '👤' : '🔒'}
+                    </Text>
+                    <Text style={styles.biometricBtnText}>{biometricInfo.label}</Text>
+                  </>
+                )}
+              </TouchableOpacity>
 
-            <View style={styles.dividerRow}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>ili unesite kredencijale</Text>
-              <View style={styles.dividerLine} />
-            </View>
-          </>
-        )}
-
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          placeholderTextColor={colors.textMuted}
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          autoCorrect={false}
-          editable={!loading}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Lozinka"
-          placeholderTextColor={colors.textMuted}
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          editable={!loading}
-        />
-
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
-        <TouchableOpacity
-          style={styles.primaryBtn}
-          onPress={handleLogin}
-          disabled={loading}
-          accessibilityLabel="Prijavi se"
-          accessibilityRole="button"
-        >
-          {loading ? (
-            <ActivityIndicator color={colors.brandText} />
-          ) : (
-            <Text style={styles.primaryBtnText}>Prijavi se</Text>
+              <View style={styles.dividerRow}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>ili unesite kredencijale</Text>
+                <View style={styles.dividerLine} />
+              </View>
+            </>
           )}
-        </TouchableOpacity>
 
-        <View style={styles.infoBox}>
-          <Ionicons name="information-circle-outline" size={16} color={colors.textMuted} />
-          <Text style={styles.infoText}>
-            Za pristup je potreban nalog na{' '}
-            <Text style={styles.infoLink}>demo.auditera.ostrichtech.rs</Text>
-            {'. '}
-            Ukoliko ga nemate, kontaktirajte administratora.
-          </Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Email"
+            placeholderTextColor={colors.textMuted}
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+            editable={!loading}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Lozinka"
+            placeholderTextColor={colors.textMuted}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            editable={!loading}
+          />
+
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+
+          <TouchableOpacity
+            style={styles.primaryBtn}
+            onPress={handleLogin}
+            disabled={loading}
+            accessibilityLabel="Prijavi se"
+            accessibilityRole="button"
+          >
+            {loading ? (
+              <ActivityIndicator color={colors.brandText} />
+            ) : (
+              <Text style={styles.primaryBtnText}>Prijavi se</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.infoBoxOuter}>
+          <View style={styles.infoBox}>
+            <Ionicons name="information-circle-outline" size={16} color={colors.textMuted} />
+            <Text style={styles.infoText}>
+              Za pristup je potreban nalog na{' '}
+              <Text style={styles.infoLink}>demo.auditera.ostrichtech.rs</Text>
+              {'. '}
+              Ukoliko ga nemate, kontaktirajte administratora.
+            </Text>
+          </View>
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -168,8 +172,8 @@ export function LoginScreen() {
 
 function createStyles(colors: ColorScheme) {
   return StyleSheet.create({
-    flex: { flex: 1 },
-    container: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: colors.background },
+    flex: { flex: 1, backgroundColor: colors.background },
+    container: { flex: 1, justifyContent: 'center', padding: 24 },
     title: { fontSize: 32, fontWeight: '700', color: colors.text, textAlign: 'center', marginBottom: 4 },
     subtitle: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 32 },
     biometricBtn: {
@@ -212,11 +216,14 @@ function createStyles(colors: ColorScheme) {
     },
     dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
     dividerText: { marginHorizontal: 12, color: colors.textMuted, fontSize: 13 },
+    infoBoxOuter: {
+      paddingHorizontal: 24,
+      paddingBottom: 24,
+    },
     infoBox: {
       flexDirection: 'row',
       alignItems: 'flex-start',
       gap: 8,
-      marginTop: 24,
       backgroundColor: colors.surface,
       borderRadius: 8,
       borderWidth: 1,
