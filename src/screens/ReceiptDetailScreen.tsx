@@ -135,10 +135,8 @@ export function ReceiptDetailScreen({ route }: Props) {
 
           {journal ? (
             <ScrollView
-              horizontal
               style={styles.journalScroll}
               contentContainerStyle={styles.journalScrollContent}
-              showsHorizontalScrollIndicator={false}
             >
               <Text style={styles.journalText}>{journal}</Text>
             </ScrollView>
