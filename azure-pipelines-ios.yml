@@ -45,6 +45,26 @@ stages:
     timeoutInMinutes: 60
 
     steps:
+      # ── Xcode 26 (iOS 26 SDK required by Apple) ───────────────────────────────
+      - script: |
+          SELECTED=""
+          for xc in $(ls -d /Applications/Xcode*.app 2>/dev/null | sort -rV); do
+            SDK_CHECK=$("$xc/Contents/Developer/usr/bin/xcodebuild" -showsdks 2>/dev/null | grep -i 'iphoneos26' || true)
+            if [ -n "$SDK_CHECK" ]; then
+              SELECTED="$xc"
+              break
+            fi
+          done
+          if [ -z "$SELECTED" ]; then
+            echo "WARNING: Xcode with iOS 26 SDK not found, using latest available"
+            SELECTED=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -rV | head -1)
+          fi
+          sudo xcode-select -s "$SELECTED/Contents/Developer"
+          echo "Selected Xcode: $SELECTED"
+          xcodebuild -version
+          xcodebuild -showsdks | grep -i ios
+        displayName: 'Select Xcode with iOS 26 SDK'
+
       # ── Node.js ──────────────────────────────────────────────────────────────
       - task: NodeTool@0
         displayName: 'Use Node.js $(NODE_VERSION)'
