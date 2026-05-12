@@ -11,8 +11,9 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { authApi, getApiErrorMessage } from '../api/client';
+import { authApi, costCentersApi, getApiErrorMessage } from '../api/client';
 import { useAuthStore } from '../stores/authStore';
+import { setCachedCostCenters } from '../stores/receiptsCache';
 import { useThemeStore } from '../stores/themeStore';
 import type { ColorScheme } from '../theme/colors';
 
@@ -72,6 +73,15 @@ export function LoginScreen() {
     try {
       const { data: envelope } = await authApi.login(email.trim(), password);
       await setAuth(envelope.data.accessToken, envelope.data.user);
+      // Load cost centers for attribution in PreviewScreen
+      try {
+        const ccResp = await costCentersApi.getActive();
+        if (ccResp.data.isSuccess) {
+          setCachedCostCenters(ccResp.data.data);
+        }
+      } catch {
+        // non-fatal
+      }
     } catch (e: unknown) {
       setError(getApiErrorMessage(e, 'Greška pri prijavi. Proverite kredencijale.'));
     } finally {

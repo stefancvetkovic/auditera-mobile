@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { CostCenterSummaryDto } from '../types/costCenters';
 
 const CACHE_KEY = 'receipts_cache';
 const IMAGE_CACHE_PREFIX = 'receipt_img_';
@@ -16,6 +17,8 @@ interface CachedReceiptItem {
   suggestedCategoryName: string | null;
   aiConfidence: number | null;
   fiscalQrUrl: string | null;
+  costCenterId?: string;
+  costCenterName?: string;
 }
 
 interface CachedReceipts {
@@ -28,6 +31,26 @@ export interface PendingReceipt {
   imageUri: string;
   description: string;
   savedAt: string;
+}
+
+// In-memory cost center cache (refreshed on login, not persisted)
+let _cachedCostCenters: CostCenterSummaryDto[] = [];
+let _lastUsedCostCenterId: string | null = null;
+
+export function setCachedCostCenters(centers: CostCenterSummaryDto[]): void {
+  _cachedCostCenters = centers;
+}
+
+export function getCachedCostCenters(): CostCenterSummaryDto[] {
+  return _cachedCostCenters;
+}
+
+export function setLastUsedCostCenterId(id: string | null): void {
+  _lastUsedCostCenterId = id;
+}
+
+export function getLastUsedCostCenterId(): string | null {
+  return _lastUsedCostCenterId;
 }
 
 // --- Receipt list cache ---

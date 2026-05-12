@@ -2,6 +2,7 @@
 import axios from 'axios';
 import { Platform } from 'react-native';
 import { useAuthStore } from '../stores/authStore';
+import type { CostCenterSummaryDto } from '../types/costCenters';
 
 interface AuthUser {
   id: string;
@@ -48,6 +49,7 @@ export interface ReceiptDetailsDto {
   fiscalData: string | null;
   fiscalQrUrl: string | null;
   isFiscal: boolean;
+  costCenterName?: string;
 }
 
 export const api = axios.create({ baseURL: API_URL, timeout: 30000 });
@@ -127,4 +129,11 @@ export const receiptsApi = {
 export const authApi = {
   login: (email: string, password: string) =>
     api.post<ApiEnvelope<LoginResult>>('/api/Auth/login', { email, password }),
+};
+
+export const costCentersApi = {
+  getActive: () =>
+    api.get<ApiEnvelope<CostCenterSummaryDto[]>>('/api/v1/cost-centers', {
+      params: { isActive: true },
+    }),
 };
