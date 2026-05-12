@@ -163,6 +163,10 @@ export function ReceiptDetailScreen({ route }: Props) {
           </>
         ) : null}
 
+        {details?.costCenterName ? (
+          <Text style={styles.value}>Cost centar: {details.costCenterName}</Text>
+        ) : null}
+
         <View style={styles.row}>
           <View style={{ flex: 1 }}>
             <Text style={styles.label}>Period</Text>

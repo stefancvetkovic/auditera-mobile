@@ -7,6 +7,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   TouchableOpacity,
+  ScrollView,
 } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -15,7 +16,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { isAxiosError } from 'axios';
 import { receiptsApi } from '../api/client';
-import { cacheReceipts, getCachedReceipts, getPendingReceipts, removePendingReceipt } from '../stores/receiptsCache';
+import { cacheReceipts, getCachedReceipts, getCachedCostCenters, getPendingReceipts, removePendingReceipt } from '../stores/receiptsCache';
 import type { PendingReceipt } from '../stores/receiptsCache';
 import { useThemeStore } from '../stores/themeStore';
 import type { ColorScheme } from '../theme/colors';
@@ -34,6 +35,8 @@ interface ReceiptItem {
   suggestedCategoryName: string | null;
   aiConfidence: number | null;
   fiscalQrUrl: string | null;
+  costCenterId?: string;
+  costCenterName?: string;
 }
 
 interface ReceiptsApiBody {
@@ -55,6 +58,8 @@ export function HistoryScreen() {
   const colors = useThemeStore((s) => s.colors);
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [cachedItems, setCachedItems] = useState<ReceiptItem[] | null>(null);
+  const costCenters = getCachedCostCenters();
+  const [filterCostCenterId, setFilterCostCenterId] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingReceipt[]>([]);
   const [categorySheet, setCategorySheet] = useState<{ visible: boolean; receiptId: string | null; currentCategoryId: string | null }>({
     visible: false, receiptId: null, currentCategoryId: null,
@@ -132,6 +137,9 @@ export function HistoryScreen() {
 
   const isOffline = isError && !isLoading;
   const items = isOffline ? (cachedItems ?? []) : serverItems;
+  const filteredItems = filterCostCenterId
+    ? items.filter((r) => r.costCenterId === filterCostCenterId)
+    : items;
 
   const handlePress = useCallback((item: ReceiptItem) => {
     navigation.navigate('ReceiptDetail', {
@@ -173,7 +181,9 @@ export function HistoryScreen() {
         </View>
       </View>
       <Text style={styles.fileName} numberOfLines={1}>{item.fileName}</Text>
-      {item.description ? <Text style={styles.desc}>{item.description}</Text> : null}
+      <Text style={{ color: colors.textSecondary }}>
+        {item.costCenterName ? `CC: ${item.costCenterName}` : (item.description ?? '')}
+      </Text>
       <View style={styles.cardFooter}>
         <Text style={styles.meta}>{item.period} · {new Date(item.submittedAt).toLocaleDateString('sr-RS')}</Text>
         {item.suggestedCategoryName ? (
@@ -237,9 +247,34 @@ export function HistoryScreen() {
 
   return (
     <View style={styles.flex}>
+      {costCenters.length > 0 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
+          <TouchableOpacity
+            style={[
+              styles.filterChip,
+              filterCostCenterId === null && styles.filterChipActive,
+            ]}
+            onPress={() => setFilterCostCenterId(null)}
+          >
+            <Text style={{ color: colors.text }}>Svi</Text>
+          </TouchableOpacity>
+          {costCenters.map((cc) => (
+            <TouchableOpacity
+              key={cc.id}
+              style={[
+                styles.filterChip,
+                filterCostCenterId === cc.id && styles.filterChipActive,
+              ]}
+              onPress={() => setFilterCostCenterId(cc.id)}
+            >
+              <Text style={{ color: colors.text }}>{cc.name}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
       <FlatList
         style={styles.list}
-        data={items}
+        data={filteredItems}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
         ListHeaderComponent={pendingHeader}
@@ -261,7 +296,7 @@ export function HistoryScreen() {
             </View>
           ) : null
         }
-        contentContainerStyle={items.length === 0 && pending.length === 0 ? styles.flexGrow : styles.listContent}
+        contentContainerStyle={filteredItems.length === 0 && pending.length === 0 ? styles.flexGrow : styles.listContent}
       />
       {isOffline && (
         <View style={styles.offlineBanner}>
@@ -339,5 +374,14 @@ function createStyles(colors: ColorScheme) {
       fontSize: 12,
       fontWeight: '500',
     },
+    filterChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginRight: 6,
+    },
+    filterChipActive: { borderColor: colors.brand },
   });
 }

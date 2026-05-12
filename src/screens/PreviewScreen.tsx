@@ -14,7 +14,8 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 import { isAxiosError } from 'axios';
 import { receiptsApi, getApiErrorMessage } from '../api/client';
-import { savePendingReceipt } from '../stores/receiptsCache';
+import { savePendingReceipt, getCachedCostCenters, getLastUsedCostCenterId, setLastUsedCostCenterId } from '../stores/receiptsCache';
+import type { CostCenterSummaryDto } from '../types/costCenters';
 import { useThemeStore } from '../stores/themeStore';
 import type { ColorScheme } from '../theme/colors';
 import type { RootStackParamList } from '../navigation/AppNavigator';
@@ -34,6 +35,15 @@ export function PreviewScreen({ navigation, route }: Props) {
   const colors = useThemeStore((s) => s.colors);
   const styles = useMemo(() => createStyles(colors), [colors]);
 
+  const costCenters = getCachedCostCenters();
+  const [attributionType, setAttributionType] = useState<'employee' | 'costCenter'>(
+    costCenters.length > 0 ? 'costCenter' : 'employee'
+  );
+  const defaultCostCenterId = costCenters.length === 1
+    ? costCenters[0].id
+    : getLastUsedCostCenterId();
+  const [selectedCostCenterId, setSelectedCostCenterId] = useState<string | null>(defaultCostCenterId);
+
   const handleSend = async () => {
     if (submitting.current) return;
     submitting.current = true;
@@ -49,6 +59,10 @@ export function PreviewScreen({ navigation, route }: Props) {
         formData.append('description', description.trim());
       }
       formData.append('submittedVia', SUBMISSION_SOURCE_MOBILE);
+      if (attributionType === 'costCenter' && selectedCostCenterId) {
+        formData.append('costCenterId', selectedCostCenterId);
+        setLastUsedCostCenterId(selectedCostCenterId);
+      }
 
       await receiptsApi.submit(formData);
       navigation.navigate('Main');
@@ -95,6 +109,49 @@ export function PreviewScreen({ navigation, route }: Props) {
         numberOfLines={3}
         editable={!loading}
       />
+
+      {/* Attribution — only when cost centers are available */}
+      {costCenters.length > 0 && (
+        <View style={styles.attributionSection}>
+          <Text style={[styles.label, { color: colors.text }]}>Dodeli na:</Text>
+          <View style={styles.toggleRow}>
+            <TouchableOpacity
+              style={[
+                styles.toggleBtn,
+                attributionType === 'employee' && styles.toggleBtnActive,
+              ]}
+              onPress={() => setAttributionType('employee')}
+            >
+              <Text style={[styles.toggleBtnText, { color: colors.text }]}>Zaposleni</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.toggleBtn,
+                attributionType === 'costCenter' && styles.toggleBtnActive,
+              ]}
+              onPress={() => setAttributionType('costCenter')}
+            >
+              <Text style={[styles.toggleBtnText, { color: colors.text }]}>Troškovni centar</Text>
+            </TouchableOpacity>
+          </View>
+          {attributionType === 'costCenter' && (
+            <View style={styles.pickerContainer}>
+              {costCenters.map((cc: CostCenterSummaryDto) => (
+                <TouchableOpacity
+                  key={cc.id}
+                  style={[
+                    styles.ccOption,
+                    selectedCostCenterId === cc.id && styles.ccOptionSelected,
+                  ]}
+                  onPress={() => setSelectedCostCenterId(cc.id)}
+                >
+                  <Text style={{ color: colors.text }}>{cc.code} — {cc.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
+      )}
 
       <View style={styles.actions}>
         <TouchableOpacity
@@ -163,5 +220,25 @@ function createStyles(colors: ColorScheme) {
     },
     secondaryBtnText: { color: colors.text, fontSize: 16, fontWeight: '600' },
     disabled: { opacity: 0.6 },
+    attributionSection: { marginVertical: 8 },
+    toggleRow: { flexDirection: 'row' as const, gap: 8, marginBottom: 8 },
+    toggleBtn: {
+      flex: 1,
+      padding: 8,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center' as const,
+    },
+    toggleBtnActive: { borderColor: colors.brand, backgroundColor: colors.surfacePressed },
+    toggleBtnText: { fontSize: 14, fontWeight: '500' as const },
+    pickerContainer: { gap: 4 },
+    ccOption: {
+      padding: 10,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    ccOptionSelected: { borderColor: colors.brand, backgroundColor: colors.surfacePressed },
   });
 }
