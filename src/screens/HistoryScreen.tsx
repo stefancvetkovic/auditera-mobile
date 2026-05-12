@@ -256,7 +256,7 @@ export function HistoryScreen() {
             ]}
             onPress={() => setFilterCostCenterId(null)}
           >
-            <Text style={{ color: colors.text }}>Svi</Text>
+            <Text style={{ color: filterCostCenterId === null ? colors.brand : colors.text }}>Svi</Text>
           </TouchableOpacity>
           {costCenters.map((cc) => (
             <TouchableOpacity
@@ -267,7 +267,7 @@ export function HistoryScreen() {
               ]}
               onPress={() => setFilterCostCenterId(cc.id)}
             >
-              <Text style={{ color: colors.text }}>{cc.name}</Text>
+              <Text style={{ color: filterCostCenterId === cc.id ? colors.brand : colors.text }}>{cc.name}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
