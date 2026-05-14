@@ -21,6 +21,7 @@
     "expo-camera": "~17.0.10",
     "expo-crypto": "~15.0.8",
     "expo-file-system": "~19.0.22",
+    "expo-image-manipulator": "^55.0.16",
     "expo-local-authentication": "~17.0.8",
     "expo-secure-store": "~15.0.8",
     "expo-status-bar": "~3.0.9",

@@ -228,10 +228,11 @@ export function CameraScreen({ navigation }: Props) {
       )}
 
       <CameraView
+        key={isFocused ? 'cam-active' : 'cam-inactive'}
         ref={cameraRef}
         style={StyleSheet.absoluteFill}
         facing="back"
-        active={isFocused && !showBanner}
+        active={isFocused && !showBanner && scannedData === null}
         enableTorch={torchEnabled}
         barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
         onBarcodeScanned={showBanner ? undefined : handleBarcodeScanned}
@@ -283,7 +284,7 @@ export function CameraScreen({ navigation }: Props) {
       <Modal visible={scannedData !== null} transparent animationType="fade">
         <KeyboardAvoidingView
           style={styles.modalBackdrop}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior="padding"
         >
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Fiskalni račun</Text>
@@ -312,7 +313,7 @@ export function CameraScreen({ navigation }: Props) {
               placeholderTextColor={colors.textMuted}
               value={description}
               onChangeText={setDescription}
-              autoFocus
+              autoFocus={Platform.OS === 'ios'}
               returnKeyType="done"
             />
 

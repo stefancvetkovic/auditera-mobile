@@ -46,3 +46,7 @@ android/key.properties
 credentials.md
 android-deploy/
 *.jks
+
+# Claude Code
+.superpowers/
+builds/

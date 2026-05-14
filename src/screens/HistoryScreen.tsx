@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   ScrollView,
+  TextInput,
 } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -50,6 +51,7 @@ interface ReceiptsApiBody {
 }
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
+type SortOption = 'newest' | 'oldest' | 'fiscal_first';
 
 export function HistoryScreen() {
   const navigation = useNavigation<Nav>();
@@ -60,6 +62,8 @@ export function HistoryScreen() {
   const [cachedItems, setCachedItems] = useState<ReceiptItem[] | null>(null);
   const costCenters = getCachedCostCenters();
   const [filterCostCenterId, setFilterCostCenterId] = useState<string | null>(null);
+  const [searchText, setSearchText] = useState('');
+  const [sortOption, setSortOption] = useState<SortOption>('newest');
   const [pending, setPending] = useState<PendingReceipt[]>([]);
   const [categorySheet, setCategorySheet] = useState<{ visible: boolean; receiptId: string | null; currentCategoryId: string | null }>({
     visible: false, receiptId: null, currentCategoryId: null,
@@ -137,9 +141,32 @@ export function HistoryScreen() {
 
   const isOffline = isError && !isLoading;
   const items = isOffline ? (cachedItems ?? []) : serverItems;
-  const filteredItems = filterCostCenterId
-    ? items.filter((r) => r.costCenterId === filterCostCenterId)
-    : items;
+
+  const filteredItems = useMemo(() => {
+    let result = filterCostCenterId
+      ? items.filter((r) => r.costCenterId === filterCostCenterId)
+      : [...items];
+
+    if (searchText.trim()) {
+      const q = searchText.trim().toLowerCase();
+      result = result.filter(
+        (r) =>
+          r.fileName.toLowerCase().includes(q) ||
+          (r.description ?? '').toLowerCase().includes(q) ||
+          (r.costCenterName ?? '').toLowerCase().includes(q),
+      );
+    }
+
+    if (sortOption === 'oldest') {
+      result.sort((a, b) => new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime());
+    } else if (sortOption === 'fiscal_first') {
+      result.sort((a, b) => (b.isFiscal ? 1 : 0) - (a.isFiscal ? 1 : 0));
+    } else {
+      result.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+    }
+
+    return result;
+  }, [items, filterCostCenterId, searchText, sortOption]);
 
   const handlePress = useCallback((item: ReceiptItem) => {
     navigation.navigate('ReceiptDetail', {
@@ -180,10 +207,12 @@ export function HistoryScreen() {
           <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
         </View>
       </View>
+      {(item.description ?? item.costCenterName) ? (
+        <Text style={styles.primaryText} numberOfLines={2}>
+          {item.costCenterName ? `CC: ${item.costCenterName}` : item.description}
+        </Text>
+      ) : null}
       <Text style={styles.fileName} numberOfLines={1}>{item.fileName}</Text>
-      <Text style={{ color: colors.textSecondary }}>
-        {item.costCenterName ? `CC: ${item.costCenterName}` : (item.description ?? '')}
-      </Text>
       <View style={styles.cardFooter}>
         <Text style={styles.meta}>{item.period} · {new Date(item.submittedAt).toLocaleDateString('sr-RS')}</Text>
         {item.suggestedCategoryName ? (
@@ -272,6 +301,32 @@ export function HistoryScreen() {
           ))}
         </ScrollView>
       )}
+      <View style={styles.searchRow}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Pretraži račune..."
+          placeholderTextColor={colors.textMuted}
+          value={searchText}
+          onChangeText={setSearchText}
+          clearButtonMode="while-editing"
+          returnKeyType="search"
+        />
+      </View>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.sortRow} contentContainerStyle={styles.sortRowContent}>
+        {([['newest', 'Najnoviji'], ['oldest', 'Najstariji'], ['fiscal_first', 'Fiskalni']] as [SortOption, string][]).map(([key, label]) => (
+          <TouchableOpacity
+            key={key}
+            style={[styles.sortChip, sortOption === key && styles.sortChipActive]}
+            onPress={() => setSortOption(key)}
+          >
+            <Text style={{ fontSize: 12, color: sortOption === key ? colors.brand : colors.textMuted, fontWeight: sortOption === key ? '600' : '400' }}>
+              {label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
       <FlatList
         style={styles.list}
         data={filteredItems}
@@ -341,7 +396,8 @@ function createStyles(colors: ColorScheme) {
     badgeText: { fontSize: 11, fontWeight: '600' },
     badgeCategory: { backgroundColor: colors.badgeCategoryBg },
     cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
-    fileName: { fontSize: 13, color: colors.textSecondary, marginBottom: 4 },
+    primaryText: { fontSize: 14, color: colors.text, marginBottom: 2, fontWeight: '500' },
+    fileName: { fontSize: 11, color: colors.textMuted, marginBottom: 4 },
     desc: { fontSize: 13, color: colors.text, marginBottom: 4 },
     meta: { fontSize: 11, color: colors.textMuted },
     emptyContainer: { alignItems: 'center', padding: 24 },
@@ -383,5 +439,33 @@ function createStyles(colors: ColorScheme) {
       marginRight: 6,
     },
     filterChipActive: { borderColor: colors.brand },
+    searchRow: {
+      paddingHorizontal: 16,
+      paddingVertical: 6,
+    },
+    searchInput: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      fontSize: 14,
+      color: colors.text,
+    },
+    sortRow: { maxHeight: 40 },
+    sortRowContent: {
+      paddingHorizontal: 16,
+      gap: 6,
+      alignItems: 'center' as const,
+    },
+    sortChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 4,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    sortChipActive: { borderColor: colors.brand },
   });
 }

@@ -153,15 +153,19 @@ export function ReceiptDetailScreen({ route }: Props) {
       )}
 
       <View style={styles.card}>
-        <Text style={styles.label}>Naziv fajla</Text>
-        <Text style={styles.value}>{fileName}</Text>
-
         {description ? (
           <>
-            <Text style={[styles.label, { marginTop: 12 }]}>Opis</Text>
+            <Text style={styles.label}>Opis</Text>
             <Text style={styles.value}>{description}</Text>
+            <Text style={[styles.label, { marginTop: 12 }]}>Naziv fajla</Text>
+            <Text style={[styles.value, styles.fileNameValue]}>{fileName}</Text>
           </>
-        ) : null}
+        ) : (
+          <>
+            <Text style={styles.label}>Naziv fajla</Text>
+            <Text style={[styles.value, styles.fileNameValue]}>{fileName}</Text>
+          </>
+        )}
 
         {details?.costCenterName ? (
           <>
@@ -304,6 +308,10 @@ function createStyles(colors: ColorScheme) {
     value: {
       color: colors.text,
       fontSize: 14,
+    },
+    fileNameValue: {
+      fontSize: 12,
+      color: colors.textMuted,
     },
     row: {
       flexDirection: 'row',
